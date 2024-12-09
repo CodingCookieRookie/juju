@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/juju/collections/set"
@@ -90,7 +91,7 @@ func (t *resolvedTarget) isAgent() bool {
 }
 
 // sshPort is the TCP port used for SSH connections.
-const sshPort = 22
+var sshPort = 22
 
 func (c *sshMachine) SetFlags(f *gnuflag.FlagSet) {
 	f.BoolVar(&c.proxy, "proxy", false, "Proxy through the API server")
@@ -533,6 +534,17 @@ func (c *sshMachine) reachableAddressGetter(entity string) (string, error) {
 		publicKeys, err = c.getKeysWithRetry(entity)
 		if err != nil {
 			return "", errors.Trace(err)
+		}
+	}
+	// ALVIN TODO
+	args := c.getArgs()
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "-p" && i != len(args)-1 {
+			sshPortNum, err := strconv.Atoi(args[i+1])
+			if err == nil {
+				sshPort = sshPortNum
+			}
 		}
 	}
 
