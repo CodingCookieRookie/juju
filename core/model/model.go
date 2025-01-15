@@ -84,6 +84,10 @@ type Model struct {
 
 	// OwnerName is the name of the owner in the Juju controller.
 	OwnerName user.Name
+
+	// EnvironVersion is the version of the model's environ -- the related
+	// cloud provider resources.
+	EnvironVersion int
 }
 
 // UUID represents a model unique identifier.

@@ -276,6 +276,7 @@ func (m *ModelManagerAPI) createModelNew(
 		creationArgs.Credential = credential.KeyFromTag(cloudCredentialTag)
 	}
 
+	creationArgs.EnvironVersion = args.EnvironVersion
 	// Create the model in the controller database.
 	modelID, activator, err := m.modelService.CreateModel(ctx, creationArgs)
 	if err != nil {
@@ -450,7 +451,6 @@ func (m *ModelManagerAPI) CreateModel(ctx context.Context, args params.ModelCrea
 	if err != nil {
 		return result, errors.Trace(err)
 	}
-
 	// createModelNew represents the logic needed for moving to DQlite. It is in
 	// a half finished state at the moment for the purpose of removing the model
 	// manager service. This check will go in the very near future.
@@ -562,6 +562,7 @@ Please choose a different model name.
 		Config:                  newConfig,
 		Owner:                   ownerTag,
 		StorageProviderRegistry: storageProviderRegistry,
+		EnvironVersion:          broker.Provider().Version(),
 	})
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to create new model")

@@ -154,6 +154,7 @@ type AddModelAPI interface {
 		name, owner, cloudName, cloudRegion string,
 		cloudCredential names.CloudCredentialTag,
 		config map[string]interface{},
+		environVersion int,
 	) (base.ModelInfo, error)
 }
 
@@ -251,8 +252,17 @@ func (c *addModelCommand) Run(ctx *cmd.Context) error {
 		}
 	}
 
+	// Called once in findCredential.
+	var environVersion int
+	provider, err := c.providerRegistry.Provider(cloud.Type)
+	if err == nil {
+		environVersion = provider.Version()
+	} else {
+		return errors.Trace(err)
+	}
+
 	addModelClient := c.newAddModelAPI(root)
-	model, err := addModelClient.CreateModel(ctx, c.Name, modelOwner, cloudTag.Id(), cloudRegion, credentialTag, attrs)
+	model, err := addModelClient.CreateModel(ctx, c.Name, modelOwner, cloudTag.Id(), cloudRegion, credentialTag, attrs, environVersion)
 	if err != nil {
 		if strings.HasPrefix(errors.Cause(err).Error(), "getting credential") {
 			err = errors.NewNotFound(nil,
@@ -583,6 +593,7 @@ func (c *addModelCommand) findSpecifiedCredential(ctx *cmd.Context, cloudClient 
 		ctx.Infof("Using credential '%s' cached in controller", c.CredentialName)
 		return nil, credentialTag, "", nil
 	}
+
 	// Cannot find a credential with the correct name
 	return fail(errors.NotFoundf("credential '%s'", c.CredentialName))
 }

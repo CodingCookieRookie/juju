@@ -47,6 +47,10 @@ type ModelCreationArgs struct {
 	// created model. SecretBackend can be left empty and a default will be
 	// chosen at creation time.
 	SecretBackend string
+
+	// EnvironVersion is the version of the model's environ -- the related
+	// cloud provider resources.
+	EnvironVersion int
 }
 
 // Validate is responsible for checking all of the fields of ModelCreationArgs
@@ -144,6 +148,10 @@ type ReadOnlyModelCreationArgs struct {
 	// IsControllerModel is a boolean value that indicates if the model is the
 	// controller model.
 	IsControllerModel bool
+
+	// EnvironVersion is the version of the model's environ -- the related
+	// cloud provider resources.
+	EnvironVersion int
 }
 
 // DeleteModelOptions is a struct that is used to modify the behavior of the
