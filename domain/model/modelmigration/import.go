@@ -17,6 +17,7 @@ import (
 	"github.com/juju/juju/core/logger"
 	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/modelmigration"
+	"github.com/juju/juju/core/providertracker"
 	coreuser "github.com/juju/juju/core/user"
 	accesserrors "github.com/juju/juju/domain/access/errors"
 	accessservice "github.com/juju/juju/domain/access/service"
@@ -27,6 +28,7 @@ import (
 	modelerrors "github.com/juju/juju/domain/model/errors"
 	modelservice "github.com/juju/juju/domain/model/service"
 	modelstate "github.com/juju/juju/domain/model/state"
+	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/uuid"
 )
@@ -115,11 +117,13 @@ func (i *importOperation) Setup(scope modelmigration.Scope) error {
 		modelservice.DefaultAgentBinaryFinder(),
 		i.logger,
 	)
+
 	i.modelDetailServiceFunc = func(id coremodel.UUID) ModelDetailService {
 		return modelservice.NewModelService(
 			id,
 			modelstate.NewState(scope.ControllerDB()),
 			modelstate.NewModelState(scope.ModelDB(), i.logger),
+			providertracker.ProviderRunner[environs.Environ](nil, id.String()),
 		)
 	}
 	i.userService = accessservice.NewService(accessstate.NewState(scope.ControllerDB(), i.logger))

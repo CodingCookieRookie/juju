@@ -45,7 +45,7 @@ func (s *modelServiceSuite) SetUpTest(c *gc.C) {
 
 func (s *modelServiceSuite) TestModelCreation(c *gc.C) {
 	id := modeltesting.GenModelUUID(c)
-	svc := NewModelService(id, s.controllerState, s.modelState)
+	svc := NewModelService(id, s.controllerState, s.modelState, nil)
 
 	m := model.ReadOnlyModelCreationArgs{
 		UUID:        id,
@@ -77,7 +77,7 @@ func (s *modelServiceSuite) TestModelCreation(c *gc.C) {
 
 func (s *modelServiceSuite) TestGetModelMetrics(c *gc.C) {
 	id := modeltesting.GenModelUUID(c)
-	svc := NewModelService(id, s.controllerState, s.modelState)
+	svc := NewModelService(id, s.controllerState, s.modelState, nil)
 
 	m := model.ReadOnlyModelCreationArgs{
 		UUID:        id,
@@ -110,7 +110,7 @@ func (s *modelServiceSuite) TestGetModelMetrics(c *gc.C) {
 
 func (s *modelServiceSuite) TestModelDeletion(c *gc.C) {
 	id := modeltesting.GenModelUUID(c)
-	svc := NewModelService(id, s.controllerState, s.modelState)
+	svc := NewModelService(id, s.controllerState, s.modelState, nil)
 
 	m := model.ReadOnlyModelCreationArgs{
 		UUID:        id,
@@ -136,7 +136,7 @@ func (s *modelServiceSuite) TestModelDeletion(c *gc.C) {
 
 func (s *modelServiceSuite) TestStatusSuspended(c *gc.C) {
 	id := modeltesting.GenModelUUID(c)
-	svc := NewModelService(id, s.controllerState, s.modelState)
+	svc := NewModelService(id, s.controllerState, s.modelState, nil)
 	svc.clock = testclock.NewClock(time.Time{})
 
 	s.modelState.setID = id
@@ -219,7 +219,7 @@ func (s *modelServiceSuite) TestStatus(c *gc.C) {
 
 func (s *modelServiceSuite) TestStatusFailedModelNotFound(c *gc.C) {
 	id := modeltesting.GenModelUUID(c)
-	svc := NewModelService(id, s.controllerState, s.modelState)
+	svc := NewModelService(id, s.controllerState, s.modelState, nil)
 
 	_, err := svc.GetStatus(context.Background())
 	c.Assert(err, jc.ErrorIs, modelerrors.NotFound)

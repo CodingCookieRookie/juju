@@ -65,6 +65,7 @@ import (
 	stubservice "github.com/juju/juju/domain/stub"
 	unitstateservice "github.com/juju/juju/domain/unitstate/service"
 	unitstatestate "github.com/juju/juju/domain/unitstate/state"
+	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/resource/store"
 )
@@ -299,6 +300,7 @@ func (s *ModelServices) ModelInfo() *modelservice.ModelService {
 		s.modelUUID,
 		modelstate.NewState(changestream.NewTxnRunnerFactory(s.controllerDB)),
 		modelstate.NewModelState(changestream.NewTxnRunnerFactory(s.modelDB), s.logger.Child("modelinfo")),
+		providertracker.ProviderRunner[environs.Environ](s.providerFactory, s.modelUUID.String()),
 	)
 }
 

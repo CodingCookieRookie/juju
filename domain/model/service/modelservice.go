@@ -9,8 +9,10 @@ import (
 	"github.com/juju/clock"
 
 	coremodel "github.com/juju/juju/core/model"
+	"github.com/juju/juju/core/providertracker"
 	corestatus "github.com/juju/juju/core/status"
 	"github.com/juju/juju/domain/model"
+	"github.com/juju/juju/environs"
 	"github.com/juju/juju/internal/errors"
 	"github.com/juju/juju/internal/uuid"
 )
@@ -50,6 +52,7 @@ type ModelService struct {
 	modelID      coremodel.UUID
 	controllerSt ControllerState
 	modelSt      ModelState
+	provider     providertracker.ProviderGetter[environs.Environ]
 }
 
 // NewModelService returns a new Service for interacting with a models state.
@@ -57,13 +60,23 @@ func NewModelService(
 	modelID coremodel.UUID,
 	controllerSt ControllerState,
 	modelSt ModelState,
+	provider providertracker.ProviderGetter[environs.Environ],
 ) *ModelService {
 	return &ModelService{
 		modelID:      modelID,
 		controllerSt: controllerSt,
 		modelSt:      modelSt,
 		clock:        clock.WallClock,
+		provider:     provider,
 	}
+}
+
+func (s *ModelService) GetEnvironVersion(ctx context.Context) (int, error) {
+	provider, err := s.provider(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return provider.Provider().Version(), nil
 }
 
 // GetModelInfo returns the readonly model information for the model in
