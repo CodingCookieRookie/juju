@@ -157,3 +157,7 @@ func (s *ModelService) GetStatus(ctx context.Context) (model.StatusInfo, error) 
 		Since:  now,
 	}, nil
 }
+
+func (s *ModelService) GetEnvironVersion() (int, error) {
+	return 0, nil
+}
