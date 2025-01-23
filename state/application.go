@@ -30,9 +30,10 @@ import (
 	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/internal/charm"
-	"github.com/juju/juju/internal/environschema"
+	"github.com/juju/juju/internal/configschema"
 	mgoutils "github.com/juju/juju/internal/mongo/utils"
 	internalpassword "github.com/juju/juju/internal/password"
+	"github.com/juju/juju/internal/relation"
 	"github.com/juju/juju/internal/tools"
 	stateerrors "github.com/juju/juju/state/errors"
 )
@@ -89,7 +90,6 @@ type applicationDoc struct {
 	Life                 Life         `bson:"life"`
 	UnitCount            int          `bson:"unitcount"`
 	RelationCount        int          `bson:"relationcount"`
-	MinUnits             int          `bson:"minunits"`
 	Tools                *tools.Tools `bson:",omitempty"`
 	TxnRevno             int64        `bson:"txn-revno"`
 
@@ -473,13 +473,6 @@ func (op *DestroyApplicationOperation) destroyOps(store objectstore.ObjectStore)
 		return nil, errRefresh
 	}
 	var ops []txn.Op
-	minUnitsExists, err := doesMinUnitsExist(op.app.st, op.app.Name())
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if minUnitsExists {
-		ops = []txn.Op{minUnitsRemoveOp(op.app.st, op.app.doc.Name)}
-	}
 	removeCount := 0
 	failedRels := false
 	for _, rel := range rels {
@@ -929,14 +922,14 @@ func (a *Application) CharmURL() (*string, bool) {
 }
 
 // Endpoints returns the application's currently available relation endpoints.
-func (a *Application) Endpoints() (eps []Endpoint, err error) {
+func (a *Application) Endpoints() (eps []relation.Endpoint, err error) {
 	ch, _, err := a.Charm()
 	if err != nil {
 		return nil, err
 	}
 	collect := func(role charm.RelationRole, rels map[string]charm.Relation) {
 		for _, rel := range rels {
-			eps = append(eps, Endpoint{
+			eps = append(eps, relation.Endpoint{
 				ApplicationName: a.doc.Name,
 				Relation:        rel,
 			})
@@ -964,17 +957,17 @@ func (a *Application) Endpoints() (eps []Endpoint, err error) {
 }
 
 // Endpoint returns the relation endpoint with the supplied name, if it exists.
-func (a *Application) Endpoint(relationName string) (Endpoint, error) {
+func (a *Application) Endpoint(relationName string) (relation.Endpoint, error) {
 	eps, err := a.Endpoints()
 	if err != nil {
-		return Endpoint{}, err
+		return relation.Endpoint{}, err
 	}
 	for _, ep := range eps {
 		if ep.Name == relationName {
 			return ep, nil
 		}
 	}
-	return Endpoint{}, errors.Errorf("application %q has no %q relation", a, relationName)
+	return relation.Endpoint{}, errors.Errorf("application %q has no %q relation", a, relationName)
 }
 
 // extraPeerRelations returns only the peer relations in newMeta not
@@ -2699,7 +2692,7 @@ func (a *Application) ApplicationConfig() (config.ConfigAttributes, error) {
 func (a *Application) UpdateApplicationConfig(
 	changes config.ConfigAttributes,
 	reset []string,
-	schema environschema.Fields,
+	schema configschema.Fields,
 	defaults schema.Defaults,
 ) error {
 	node, err := readSettings(a.st.db(), settingsC, a.applicationConfigKey())

@@ -12,7 +12,7 @@ import (
 	"github.com/juju/schema"
 
 	"github.com/juju/juju/core/secrets"
-	"github.com/juju/juju/internal/environschema"
+	"github.com/juju/juju/internal/configschema"
 )
 
 // SecretRevisions holds external revision ids for a list of secrets.
@@ -53,14 +53,14 @@ type ConfigAttrs map[string]interface{}
 // ProviderConfig is implemented by providers that support config validation.
 type ProviderConfig interface {
 	// ConfigSchema returns the fields defining the provider config.
-	ConfigSchema() environschema.Fields
+	ConfigSchema() configschema.Fields
 
 	// ConfigDefaults returns default attribute values.
 	ConfigDefaults() schema.Defaults
 
 	// ValidateConfig returns an error if the new
 	//provider config is not valid.
-	ValidateConfig(oldCfg, newCfg ConfigAttrs) error
+	ValidateConfig(oldCfg, newCfg ConfigAttrs, tokenRotateInterval *time.Duration) error
 }
 
 // SecretBackendProvider instances create secret backends.
@@ -92,7 +92,7 @@ type SecretBackendProvider interface {
 
 // SupportAuthRefresh defines the methods to refresh auth tokens.
 type SupportAuthRefresh interface {
-	RefreshAuth(adminCfg BackendConfig, validFor time.Duration) (*BackendConfig, error)
+	RefreshAuth(ctx context.Context, adminCfg BackendConfig, validFor time.Duration) (*BackendConfig, error)
 }
 
 // HasAuthRefresh returns true if the provider supports token refresh.

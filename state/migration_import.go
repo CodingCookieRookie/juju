@@ -27,6 +27,7 @@ import (
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/charm"
 	internallogger "github.com/juju/juju/internal/logger"
+	"github.com/juju/juju/internal/relation"
 	"github.com/juju/juju/internal/storage"
 	"github.com/juju/juju/internal/storage/provider"
 	"github.com/juju/juju/internal/tools"
@@ -906,7 +907,6 @@ func (i *importer) makeApplicationDoc(a description.Application) (*applicationDo
 		RelationCount:        i.relationCount(a.Name()),
 		Exposed:              a.Exposed(),
 		ExposedEndpoints:     exposedEndpoints,
-		MinUnits:             a.MinUnits(),
 		Tools:                agentTools,
 		DesiredScale:         a.DesiredScale(),
 		Placement:            a.Placement(),
@@ -1263,11 +1263,11 @@ func (i *importer) makeRelationDoc(rel description.Relation) *relationDoc {
 	doc := &relationDoc{
 		Key:       rel.Key(),
 		Id:        rel.Id(),
-		Endpoints: make([]Endpoint, len(endpoints)),
+		Endpoints: make([]relation.Endpoint, len(endpoints)),
 		Life:      Alive,
 	}
 	for i, ep := range endpoints {
-		doc.Endpoints[i] = Endpoint{
+		doc.Endpoints[i] = relation.Endpoint{
 			ApplicationName: ep.ApplicationName(),
 			Relation: charm.Relation{
 				Name:      ep.Name(),

@@ -33,11 +33,12 @@ import (
 	applicationservice "github.com/juju/juju/domain/application/service"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/internal/charm"
-	"github.com/juju/juju/internal/environschema"
+	"github.com/juju/juju/internal/configschema"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	internalobjectstore "github.com/juju/juju/internal/objectstore"
 	objectstoretesting "github.com/juju/juju/internal/objectstore/testing"
 	"github.com/juju/juju/internal/password"
+	"github.com/juju/juju/internal/relation"
 	"github.com/juju/juju/internal/storage"
 	"github.com/juju/juju/internal/storage/provider"
 	"github.com/juju/juju/internal/testing"
@@ -105,7 +106,7 @@ type ApplicationParams struct {
 	CharmOrigin             *state.CharmOrigin
 	Status                  *status.StatusInfo
 	ApplicationConfig       map[string]interface{}
-	ApplicationConfigFields environschema.Fields
+	ApplicationConfigFields configschema.Fields
 	CharmConfig             map[string]interface{}
 	Storage                 map[string]state.StorageConstraints
 	Constraints             constraints.Value
@@ -127,7 +128,7 @@ type UnitParams struct {
 
 // RelationParams are used to create relations.
 type RelationParams struct {
-	Endpoints []state.Endpoint
+	Endpoints []relation.Endpoint
 }
 
 type ModelParams struct {
@@ -704,7 +705,7 @@ func (factory *Factory) MakeRelation(c *gc.C, params *RelationParams) *state.Rel
 		e2, err := s2.Endpoint("db")
 		c.Assert(err, jc.ErrorIsNil)
 
-		params.Endpoints = []state.Endpoint{e1, e2}
+		params.Endpoints = []relation.Endpoint{e1, e2}
 	}
 
 	relation, err := factory.st.AddRelation(params.Endpoints...)

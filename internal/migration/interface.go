@@ -16,6 +16,7 @@ import (
 	"github.com/juju/juju/core/presence"
 	"github.com/juju/juju/core/status"
 	environscloudspec "github.com/juju/juju/environs/cloudspec"
+	"github.com/juju/juju/internal/relation"
 	"github.com/juju/juju/internal/tools"
 	"github.com/juju/juju/state"
 )
@@ -93,7 +94,6 @@ type PrecheckApplication interface {
 	Name() string
 	CharmURL() (*string, bool)
 	AllUnits() ([]PrecheckUnit, error)
-	MinUnits() int
 }
 
 // PrecheckUnit describes state interface for a unit needed by
@@ -112,7 +112,7 @@ type PrecheckUnit interface {
 // for prechecks.
 type PrecheckRelation interface {
 	String() string
-	Endpoints() []state.Endpoint
+	Endpoints() []relation.Endpoint
 	Unit(PrecheckUnit) (PrecheckRelationUnit, error)
 	AllRemoteUnits(appName string) ([]PrecheckRelationUnit, error)
 	RemoteApplication() (string, bool, error)

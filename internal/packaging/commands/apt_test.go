@@ -16,15 +16,15 @@ import (
 var _ = gc.Suite(&AptSuite{})
 
 type AptSuite struct {
-	paccmder commands.PackageCommander
+	aptCommander commands.AptPackageCommander
 }
 
 func (s *AptSuite) SetUpSuite(c *gc.C) {
-	s.paccmder = commands.NewAptPackageCommander()
+	s.aptCommander = commands.NewAptPackageCommander()
 }
 
 func (s *AptSuite) TestProxyConfigContentsEmpty(c *gc.C) {
-	out := s.paccmder.ProxyConfigContents(proxy.Settings{})
+	out := s.aptCommander.ProxyConfigContents(proxy.Settings{})
 	c.Assert(out, gc.Equals, "")
 }
 
@@ -33,7 +33,7 @@ func (s *AptSuite) TestProxyConfigContentsPartial(c *gc.C) {
 		Http: "dat-proxy.zone:8080",
 	}
 
-	output := s.paccmder.ProxyConfigContents(sets)
+	output := s.aptCommander.ProxyConfigContents(sets)
 	c.Assert(output, gc.Equals, "Acquire::http::Proxy \"dat-proxy.zone:8080\";")
 }
 
@@ -54,15 +54,16 @@ Acquire::http::Proxy::"local2" "DIRECT";
 Acquire::https::Proxy::"local2" "DIRECT";
 Acquire::ftp::Proxy::"local2" "DIRECT";`
 
-	output := s.paccmder.ProxyConfigContents(sets)
+	output := s.aptCommander.ProxyConfigContents(sets)
 	c.Assert(output, gc.Equals, expected)
 }
 
 func (s *AptSuite) TestSetMirrorCommands(c *gc.C) {
 	expected := `
-old_archive_mirror=$(awk "/^deb .* $(awk -F= '/DISTRIB_CODENAME=/ {gsub(/"/,""); print $2}' /etc/lsb-release) .*main.*\$/{print \$2;exit}" /etc/apt/sources.list)
-new_archive_mirror=http://mirror
-sed -i s,$old_archive_mirror,$new_archive_mirror, /etc/apt/sources.list
+old_archive_mirror=$(apt-cache policy | grep http | awk '{ $1="" ; print }' | sed 's/^ //g'  | grep "$(lsb_release -c -s)/main" | awk '{print $1; exit}')
+new_archive_mirror="http://mirror"
+[ -f "/etc/apt/sources.list" ] && sed -i s,$old_archive_mirror,$new_archive_mirror, "/etc/apt/sources.list"
+[ -f "/etc/apt/sources.list.d/ubuntu.sources" ] && sed -i s,$old_archive_mirror,$new_archive_mirror, "/etc/apt/sources.list.d/ubuntu.sources"
 old_prefix=/var/lib/apt/lists/$(echo $old_archive_mirror | sed 's,.*://,,' | sed 's,/$,,' | tr / _)
 new_prefix=/var/lib/apt/lists/$(echo $new_archive_mirror | sed 's,.*://,,' | sed 's,/$,,' | tr / _)
 [ "$old_prefix" != "$new_prefix" ] &&
@@ -72,9 +73,10 @@ for old in ${old_prefix}_*; do
       mv $old $new
     fi
 done
-old_security_mirror=$(awk "/^deb .* $(awk -F= '/DISTRIB_CODENAME=/ {gsub(/"/,""); print $2}' /etc/lsb-release)-security .*main.*\$/{print \$2;exit}" /etc/apt/sources.list)
-new_security_mirror=http://security-mirror
-sed -i s,$old_security_mirror,$new_security_mirror, /etc/apt/sources.list
+old_security_mirror=$(apt-cache policy | grep http | awk '{ $1="" ; print }' | sed 's/^ //g'  | grep "$(lsb_release -c -s)-security/main" | awk '{print $1; exit}')
+new_security_mirror="http://security-mirror"
+[ -f "/etc/apt/sources.list" ] && sed -i s,$old_security_mirror,$new_security_mirror, "/etc/apt/sources.list"
+[ -f "/etc/apt/sources.list.d/ubuntu.sources" ] && sed -i s,$old_security_mirror,$new_security_mirror, "/etc/apt/sources.list.d/ubuntu.sources"
 old_prefix=/var/lib/apt/lists/$(echo $old_security_mirror | sed 's,.*://,,' | sed 's,/$,,' | tr / _)
 new_prefix=/var/lib/apt/lists/$(echo $new_security_mirror | sed 's,.*://,,' | sed 's,/$,,' | tr / _)
 [ "$old_prefix" != "$new_prefix" ] &&
@@ -84,7 +86,7 @@ for old in ${old_prefix}_*; do
       mv $old $new
     fi
 done`[1:]
-	cmds := s.paccmder.SetMirrorCommands("http://mirror", "http://security-mirror")
+	cmds := s.aptCommander.SetMirrorCommands("http://mirror", "http://security-mirror")
 	output := strings.Join(cmds, "\n")
 	c.Assert(output, gc.Equals, expected)
 }

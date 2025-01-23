@@ -25,6 +25,7 @@ import (
 	environscloudspec "github.com/juju/juju/environs/cloudspec"
 	"github.com/juju/juju/internal/migration"
 	"github.com/juju/juju/internal/provider/lxd"
+	"github.com/juju/juju/internal/relation"
 	"github.com/juju/juju/internal/testing"
 	"github.com/juju/juju/internal/tools"
 	"github.com/juju/juju/internal/upgrades/upgradevalidation"
@@ -336,24 +337,6 @@ func (s *SourcePrecheckSuite) TestDyingApplication(c *gc.C) {
 	c.Assert(err.Error(), gc.Equals, "application foo is dying")
 }
 
-func (s *SourcePrecheckSuite) TestWithPendingMinUnits(c *gc.C) {
-	defer s.setupMocksWithDefaultAgentVersion(c).Finish()
-
-	s.expectApplicationLife("foo", life.Alive)
-
-	backend := &fakeBackend{
-		apps: []migration.PrecheckApplication{
-			&fakeApp{
-				name:     "foo",
-				minunits: 2,
-				units:    []migration.PrecheckUnit{&fakeUnit{name: "foo/0"}},
-			},
-		},
-	}
-	err := sourcePrecheck(backend, &fakeCredentialService{}, s.upgradeService, s.applicationService, s.agentService)
-	c.Assert(err.Error(), gc.Equals, "application foo is below its minimum units threshold")
-}
-
 func (s *SourcePrecheckSuite) TestUnitVersionsDoNotMatch(c *gc.C) {
 	defer s.setupMocks(c).Finish()
 	s.expectAgentVersion(2)
@@ -572,7 +555,7 @@ func (s *SourcePrecheckSuite) TestUnitsAllInScope(c *gc.C) {
 
 	backend := newHappyBackend()
 	backend.relations = []migration.PrecheckRelation{&fakeRelation{
-		endpoints: []state.Endpoint{
+		endpoints: []relation.Endpoint{
 			{ApplicationName: "foo"},
 			{ApplicationName: "bar"},
 		},
@@ -596,7 +579,7 @@ func (s *SourcePrecheckSuite) TestSubordinatesNotYetInScope(c *gc.C) {
 	backend := newHappyBackend()
 	backend.relations = []migration.PrecheckRelation{&fakeRelation{
 		key: "foo:db bar:db",
-		endpoints: []state.Endpoint{
+		endpoints: []relation.Endpoint{
 			{ApplicationName: "foo"},
 			{ApplicationName: "bar"},
 		},
@@ -621,7 +604,7 @@ func (s *SourcePrecheckSuite) TestSubordinatesInvalidUnitsNotYetInScope(c *gc.C)
 	backend := newHappyBackend()
 	backend.relations = []migration.PrecheckRelation{&fakeRelation{
 		key: "foo:db bar:db",
-		endpoints: []state.Endpoint{
+		endpoints: []relation.Endpoint{
 			{ApplicationName: "foo"},
 			{ApplicationName: "bar"},
 		},
@@ -645,7 +628,7 @@ func (s *SourcePrecheckSuite) TestCrossModelUnitsNotYetInScope(c *gc.C) {
 	backend := newHappyBackend()
 	backend.relations = []migration.PrecheckRelation{&fakeRelation{
 		key: "foo:db remote-mysql:db",
-		endpoints: []state.Endpoint{
+		endpoints: []relation.Endpoint{
 			{ApplicationName: "foo"},
 			{ApplicationName: "remote-mysql"},
 		},
@@ -1368,7 +1351,6 @@ type fakeApp struct {
 	name     string
 	charmURL string
 	units    []migration.PrecheckUnit
-	minunits int
 }
 
 func (a *fakeApp) Name() string {
@@ -1385,10 +1367,6 @@ func (a *fakeApp) CharmURL() (*string, bool) {
 
 func (a *fakeApp) AllUnits() ([]migration.PrecheckUnit, error) {
 	return a.units, nil
-}
-
-func (a *fakeApp) MinUnits() int {
-	return a.minunits
 }
 
 type fakeUnit struct {
@@ -1454,7 +1432,7 @@ func (u *fakeUnit) IsSidecar() (bool, error) {
 
 type fakeRelation struct {
 	key            string
-	endpoints      []state.Endpoint
+	endpoints      []relation.Endpoint
 	relUnits       map[string]*fakeRelationUnit
 	remoteAppName  string
 	remoteRelUnits map[string][]*fakeRelationUnit
@@ -1465,7 +1443,7 @@ func (r *fakeRelation) String() string {
 	return r.key
 }
 
-func (r *fakeRelation) Endpoints() []state.Endpoint {
+func (r *fakeRelation) Endpoints() []relation.Endpoint {
 	return r.endpoints
 }
 
