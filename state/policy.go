@@ -63,11 +63,7 @@ func (st *State) ResolveConstraints(cons constraints.Value) (constraints.Value, 
 	if err != nil {
 		return constraints.Value{}, err
 	}
-	modelCons, err := st.ModelConstraints()
-	if err != nil {
-		return constraints.Value{}, err
-	}
-	return validator.Merge(modelCons, cons)
+	return validator.Merge(constraints.Value{}, cons)
 }
 
 // validateConstraints returns an error if the given constraints are not valid for the
