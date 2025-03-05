@@ -164,7 +164,7 @@ func (config ManifoldConfig) start(context context.Context, getter dependency.Ge
 	w, err := config.NewWorker(Config{
 		Authority:    authority,
 		Logger:       config.Logger,
-		ModelWatcher: systemState,
+		SystemState:  systemState,
 		ModelMetrics: config.ModelMetrics,
 		Controller: StatePoolController{
 			StatePool: statePool,
