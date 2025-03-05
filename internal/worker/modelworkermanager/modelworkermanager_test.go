@@ -355,10 +355,6 @@ type mockModelWatcher struct {
 	envWatcher *mockEnvWatcher
 }
 
-func (mock *mockModelWatcher) WatchModels() state.StringsWatcher {
-	return mock.envWatcher
-}
-
 func (mock *mockModelWatcher) sendModelChange(uuids ...string) {
 	mock.envWatcher.changes <- uuids
 }

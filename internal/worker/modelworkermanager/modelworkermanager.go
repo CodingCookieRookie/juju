@@ -28,12 +28,6 @@ import (
 	"github.com/juju/juju/state"
 )
 
-// ModelWatcher provides an interface for watching the additiona and
-// removal of models.
-type ModelWatcher interface {
-	WatchModels() state.StringsWatcher
-}
-
 // ControllerConfigGetter is an interface that returns the controller config.
 type ControllerConfigGetter interface {
 	ControllerConfig(context.Context) (controller.Config, error)
@@ -217,7 +211,6 @@ func (m *modelWorkerManager) loop() error {
 		return errors.Trace(err)
 	}
 
-	// watcher = m.config.ModelWatcher.WatchModels()
 	if err := m.catacomb.Add(watcher); err != nil {
 		return errors.Trace(err)
 	}

@@ -203,17 +203,6 @@ func collFactory(db Database, collName string) func() (mongo.Collection, func())
 	}
 }
 
-// WatchModels returns a StringsWatcher that notifies of changes to
-// any models. If a model is removed this *won't* signal that the
-// model has gone away - it's based on a collectionWatcher which omits
-// these events.
-func (st *State) WatchModels() StringsWatcher {
-	return newCollectionWatcher(st, colWCfg{
-		col:    modelsC,
-		global: true,
-	})
-}
-
 // WatchModelLives returns a StringsWatcher that notifies of changes
 // to any model life values. The watcher will not send any more events
 // for a model after it has been observed to be Dead.
