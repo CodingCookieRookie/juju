@@ -6,7 +6,7 @@ package services
 import (
 	"context"
 
-	coremodel "github.com/juju/juju/core/model"
+	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/watcher"
 	accessservice "github.com/juju/juju/domain/access/service"
 	agentprovisionerservice "github.com/juju/juju/domain/agentprovisioner/service"
@@ -55,7 +55,7 @@ type ModelService interface {
 	WatchActivatedModels(ctx context.Context) (watcher.StringsWatcher, error)
 
 	// Model returns the model associated with the provided uuid.
-	Model(ctx context.Context, uuid coremodel.UUID) (coremodel.Model, error)
+	Model(ctx context.Context, uuid model.UUID) (model.Model, error)
 }
 
 // ControllerDomainServices provides access to the services required by the
@@ -169,7 +169,7 @@ type DomainServices interface {
 // model.
 type DomainServicesGetter interface {
 	// ServicesForModel returns a DomainServices for the given model.
-	ServicesForModel(ctx context.Context, modelID coremodel.UUID) (DomainServices, error)
+	ServicesForModel(ctx context.Context, modelID model.UUID) (DomainServices, error)
 }
 
 // ProviderServices provides access to the services required by the
@@ -222,7 +222,7 @@ type ObjectStoreServices interface {
 // for a given model.
 type ObjectStoreServicesGetter interface {
 	// ServicesForModel returns a ObjectStoreServices for the given model.
-	ServicesForModel(modelUUID coremodel.UUID) ObjectStoreServices
+	ServicesForModel(modelUUID model.UUID) ObjectStoreServices
 }
 
 // ControllerLogSinkServices provides access to the services required by the

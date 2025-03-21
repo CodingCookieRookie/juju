@@ -13,7 +13,7 @@ import (
 	"github.com/juju/worker/v4/dependency"
 	dt "github.com/juju/worker/v4/dependency/testing"
 	"github.com/juju/worker/v4/workertest"
-	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/controller"
@@ -155,6 +155,8 @@ func (s *ManifoldSuite) TestStart(c *gc.C) {
 	c.Assert(config.NewModelWorker, gc.NotNil)
 	modelConfig := modelworkermanager.NewModelConfig{
 		Authority:    s.authority,
+		ModelName:    "test",
+		ModelOwner:   "owner",
 		ModelUUID:    "foo",
 		ModelType:    state.ModelTypeIAAS,
 		ModelMetrics: dummyMetricSink{},

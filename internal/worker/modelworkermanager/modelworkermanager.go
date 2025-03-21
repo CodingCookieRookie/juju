@@ -242,7 +242,7 @@ func (m *modelWorkerManager) modelChanged(ctx context.Context, modelUUID string)
 	cfg := NewModelConfig{
 		Authority:    m.config.Authority,
 		ModelName:    model.Name,
-		ModelOwner:   model.Owner.String(),
+		ModelOwner:   model.OwnerName.Name(),
 		ModelUUID:    modelUUID,
 		ModelType:    state.ModelType(model.ModelType),
 		ModelMetrics: m.config.ModelMetrics.ForModel(names.NewModelTag(modelUUID)),
