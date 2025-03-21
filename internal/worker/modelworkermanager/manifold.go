@@ -149,17 +149,17 @@ func (config ManifoldConfig) start(context context.Context, getter dependency.Ge
 	}
 
 	w, err := config.NewWorker(Config{
-		Authority:                authority,
-		Logger:                   config.Logger,
-		ModelMetrics:             config.ModelMetrics,
-		LogSinkGetter:            logSinkGetter,
-		NewModelWorker:           config.NewModelWorker,
-		ErrorDelay:               jworker.RestartDelay,
-		DomainServicesGetter:     domainServicesGetter,
-		ControllerDomainServices: controllerDomainServices,
-		ProviderServicesGetter:   providerServicesGetter,
-		HTTPClientGetter:         httpClientGetter,
-		GetControllerConfig:      config.GetControllerConfig,
+		Authority:              authority,
+		Logger:                 config.Logger,
+		ModelMetrics:           config.ModelMetrics,
+		LogSinkGetter:          logSinkGetter,
+		NewModelWorker:         config.NewModelWorker,
+		ErrorDelay:             jworker.RestartDelay,
+		DomainServicesGetter:   domainServicesGetter,
+		ModelService:           controllerDomainServices.Model(),
+		ProviderServicesGetter: providerServicesGetter,
+		HTTPClientGetter:       httpClientGetter,
+		GetControllerConfig:    config.GetControllerConfig,
 	})
 	if err != nil {
 		return nil, errors.Trace(err)

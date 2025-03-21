@@ -22,7 +22,6 @@ import (
 	corelogger "github.com/juju/juju/core/logger"
 	"github.com/juju/juju/core/model"
 	modelerrors "github.com/juju/juju/domain/model/errors"
-	modelservice "github.com/juju/juju/domain/model/service"
 	"github.com/juju/juju/internal/pki"
 	"github.com/juju/juju/internal/services"
 	internalworker "github.com/juju/juju/internal/worker"
@@ -66,13 +65,6 @@ type ModelMetrics interface {
 	ForModel(names.ModelTag) MetricSink
 }
 
-// ControllerDomainServices provides access to the services required by the
-// apiserver.
-type ControllerDomainServices interface {
-	// Model returns the model service.
-	Model() *modelservice.WatchableService
-}
-
 // GetControllerConfigFunc is a function that returns the controller config,
 // from the given service.
 type GetControllerConfigFunc func(ctx context.Context, controllerConfigService ControllerConfigService) (controller.Config, error)
@@ -101,18 +93,18 @@ type NewModelWorkerFunc func(config NewModelConfig) (worker.Worker, error)
 // Config holds the dependencies and configuration necessary to run
 // a model worker manager.
 type Config struct {
-	Authority                pki.Authority
-	Logger                   corelogger.Logger
-	ModelMetrics             ModelMetrics
-	Mux                      *apiserverhttp.Mux
-	NewModelWorker           NewModelWorkerFunc
-	ErrorDelay               time.Duration
-	LogSinkGetter            corelogger.ModelLogSinkGetter
-	ProviderServicesGetter   ProviderServicesGetter
-	DomainServicesGetter     services.DomainServicesGetter
-	ControllerDomainServices ControllerDomainServices
-	GetControllerConfig      GetControllerConfigFunc
-	HTTPClientGetter         http.HTTPClientGetter
+	Authority              pki.Authority
+	Logger                 corelogger.Logger
+	ModelMetrics           ModelMetrics
+	Mux                    *apiserverhttp.Mux
+	NewModelWorker         NewModelWorkerFunc
+	ErrorDelay             time.Duration
+	LogSinkGetter          corelogger.ModelLogSinkGetter
+	ProviderServicesGetter ProviderServicesGetter
+	DomainServicesGetter   services.DomainServicesGetter
+	ModelService           services.ModelService
+	GetControllerConfig    GetControllerConfigFunc
+	HTTPClientGetter       http.HTTPClientGetter
 }
 
 // Validate returns an error if config cannot be expected to drive
@@ -124,8 +116,8 @@ func (config Config) Validate() error {
 	if config.Logger == nil {
 		return errors.NotValidf("nil Logger")
 	}
-	if config.ControllerDomainServices == nil {
-		return errors.NotValidf("nil ControllerDomainServices")
+	if config.ModelService == nil {
+		return errors.NotValidf("nil ModelService")
 	}
 	if config.ModelMetrics == nil {
 		return errors.NotValidf("nil ModelMetrics")
@@ -204,7 +196,7 @@ func (m *modelWorkerManager) Wait() error {
 func (m *modelWorkerManager) loop() error {
 	ctx, cancel := m.scopedContext()
 	defer cancel()
-	watcher, err := m.config.ControllerDomainServices.Model().WatchActivatedModels(ctx)
+	watcher, err := m.config.ModelService.WatchActivatedModels(ctx)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -231,7 +223,7 @@ func (m *modelWorkerManager) loop() error {
 }
 
 func (m *modelWorkerManager) modelChanged(ctx context.Context, modelUUID string) error {
-	model, err := m.config.ControllerDomainServices.Model().Model(ctx, model.UUID(modelUUID))
+	model, err := m.config.ModelService.Model(ctx, model.UUID(modelUUID))
 
 	if errors.Is(err, modelerrors.NotFound) {
 		// Model was removed, ignore it.

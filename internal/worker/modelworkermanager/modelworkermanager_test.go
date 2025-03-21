@@ -20,11 +20,10 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/juju/juju/controller"
-	changestream "github.com/juju/juju/core/changestream"
 	corelogger "github.com/juju/juju/core/logger"
 	coremodel "github.com/juju/juju/core/model"
 	modeltesting "github.com/juju/juju/core/model/testing"
-	domainmodelservice "github.com/juju/juju/domain/model/service"
+	"github.com/juju/juju/core/watcher/watchertest"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	"github.com/juju/juju/internal/pki"
 	pkitest "github.com/juju/juju/internal/pki/test"
@@ -38,19 +37,11 @@ var _ = gc.Suite(&suite{})
 type suite struct {
 	authority pki.Authority
 	testing.IsolationSuite
-	workerC                  chan *mockWorker
-	providerServicesGetter   modelworkermanager.ProviderServicesGetter
-	domainServicesGetter     *MockDomainServicesGetter
-	domainServices           *MockDomainServices
-	controllerDomainServices *MockControllerDomainServices
-	mockModelWatchableService
-}
-
-type mockModelWatchableService struct {
-	mockModelDeleter   *MockModelDeleter
-	mockState          *MockState
-	mockWatcherFactory *MockWatcherFactory
-	mockStringsWatcher *MockStringsWatcher
+	workerC                chan *mockWorker
+	providerServicesGetter modelworkermanager.ProviderServicesGetter
+	domainServicesGetter   *MockDomainServicesGetter
+	domainServices         *MockDomainServices
+	modelService           *MockModelService
 }
 
 func (s *suite) setupMocks(c *gc.C) *gomock.Controller {
@@ -58,10 +49,7 @@ func (s *suite) setupMocks(c *gc.C) *gomock.Controller {
 
 	s.domainServicesGetter = NewMockDomainServicesGetter(ctrl)
 	s.domainServices = NewMockDomainServices(ctrl)
-	s.controllerDomainServices = NewMockControllerDomainServices(ctrl)
-	s.mockState = NewMockState(ctrl)
-	s.mockWatcherFactory = NewMockWatcherFactory(ctrl)
-	s.mockStringsWatcher = NewMockStringsWatcher(ctrl)
+	s.modelService = NewMockModelService(ctrl)
 
 	return ctrl
 }
@@ -76,24 +64,29 @@ func (s *suite) SetUpTest(c *gc.C) {
 }
 
 func (s *suite) TestStartEmpty(c *gc.C) {
-
-	s.runTest(c, func(_ worker.Worker, _ *mockController) {
+	s.runTest(c, func(_ worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 		s.assertNoWorkers(c)
 	})
 }
 
 func (s *suite) TestStartsInitialWorker(c *gc.C) {
-	s.runTest(c, func(_ worker.Worker, _ *mockController) {
+	s.runTest(c, func(_ worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1}
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
 			return uuid.String()
@@ -105,17 +98,20 @@ func (s *suite) TestStartsInitialWorker(c *gc.C) {
 }
 
 func (s *suite) TestStartsLaterWorker(c *gc.C) {
-	s.runTest(c, func(_ worker.Worker, _ *mockController) {
+	s.runTest(c, func(_ worker.Worker) {
 		changes := make(chan []string, 2)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		changes <- nil
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1}
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
 			return uuid.String()
@@ -127,25 +123,28 @@ func (s *suite) TestStartsLaterWorker(c *gc.C) {
 }
 
 func (s *suite) TestStartsMultiple(c *gc.C) {
-	s.runTest(c, func(_ worker.Worker, _ *mockController) {
+	s.runTest(c, func(_ worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
 		activatedModelUUID2 := modeltesting.GenModelUUID(c)
 		activatedModelUUID3 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID2).Return(coremodel.Model{
+		}, nil)
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID2).Return(coremodel.Model{
 			UUID:      activatedModelUUID2,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID3).Return(coremodel.Model{
+		}, nil)
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID3).Return(coremodel.Model{
 			UUID:      activatedModelUUID3,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1, activatedModelUUID2, activatedModelUUID3}
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
 			return uuid.String()
@@ -157,12 +156,15 @@ func (s *suite) TestStartsMultiple(c *gc.C) {
 }
 
 func (s *suite) TestIgnoresRepetition(c *gc.C) {
-	s.runTest(c, func(_ worker.Worker, _ *mockController) {
+	s.runTest(c, func(_ worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
 		}, nil).AnyTimes()
@@ -177,15 +179,18 @@ func (s *suite) TestIgnoresRepetition(c *gc.C) {
 }
 
 func (s *suite) TestRestartsErrorWorker(c *gc.C) {
-	s.runTest(c, func(w worker.Worker, _ *mockController) {
+	s.runTest(c, func(w worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1}
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
@@ -205,11 +210,14 @@ func (s *suite) TestRestartsFinishedWorker(c *gc.C) {
 	// It must be possible to restart the workers for a model due to
 	// model migrations: a model can be migrated away from a
 	// controller and then migrated back later.
-	s.runTest(c, func(w worker.Worker, _ *mockController) {
+	s.runTest(c, func(w worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
 		}, nil).AnyTimes()
@@ -231,20 +239,23 @@ func (s *suite) TestRestartsFinishedWorker(c *gc.C) {
 }
 
 func (s *suite) TestKillsManagers(c *gc.C) {
-	s.runTest(c, func(w worker.Worker, _ *mockController) {
+	s.runTest(c, func(w worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
 		activatedModelUUID2 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID2).Return(coremodel.Model{
+		}, nil)
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID2).Return(coremodel.Model{
 			UUID:      activatedModelUUID2,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1, activatedModelUUID2}
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
@@ -263,20 +274,23 @@ func (s *suite) TestKillsManagers(c *gc.C) {
 }
 
 func (s *suite) TestClosedChangesChannel(c *gc.C) {
-	s.runDirtyTest(c, func(w worker.Worker, _ *mockController) {
+	s.runDirtyTest(c, func(w worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
 		activatedModelUUID2 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID2).Return(coremodel.Model{
+		}, nil)
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID2).Return(coremodel.Model{
 			UUID:      activatedModelUUID2,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1, activatedModelUUID2}
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
@@ -296,15 +310,18 @@ func (s *suite) TestClosedChangesChannel(c *gc.C) {
 }
 
 func (s *suite) TestReport(c *gc.C) {
-	s.runTest(c, func(w worker.Worker, _ *mockController) {
+	s.runTest(c, func(w worker.Worker) {
 		changes := make(chan []string, 1)
-		s.mockStringsWatcher.EXPECT().Changes().AnyTimes().Return(changes)
+		watcher := watchertest.NewMockStringsWatcher(changes)
+		s.modelService.EXPECT().WatchActivatedModels(gomock.Any()).Return(
+			watcher, nil,
+		)
 
 		activatedModelUUID1 := modeltesting.GenModelUUID(c)
-		s.mockState.EXPECT().GetModel(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
+		s.modelService.EXPECT().Model(gomock.Any(), activatedModelUUID1).Return(coremodel.Model{
 			UUID:      activatedModelUUID1,
 			ModelType: coremodel.ModelType(state.ModelTypeIAAS),
-		}, nil).AnyTimes()
+		}, nil)
 
 		activatedModelUUIDs := []coremodel.UUID{activatedModelUUID1}
 		activatedModelUUIDsStr := transform.Slice(activatedModelUUIDs, func(uuid coremodel.UUID) string {
@@ -326,7 +343,7 @@ func (s *suite) TestReport(c *gc.C) {
 	})
 }
 
-type testFunc func(worker.Worker, *mockController)
+type testFunc func(worker.Worker)
 type killFunc func(*gc.C, worker.Worker)
 
 func (s *suite) runTest(c *gc.C, test testFunc) {
@@ -344,33 +361,17 @@ func (s *suite) runKillTest(c *gc.C, kill killFunc, test testFunc) {
 	s.domainServicesGetter.EXPECT().ServicesForModel(gomock.Any(), gomock.Any()).Return(s.domainServices, nil).AnyTimes()
 	s.domainServices.EXPECT().ControllerConfig().AnyTimes()
 
-	domainWatchableService := domainmodelservice.NewWatchableService(
-		s.mockState,
-		s.mockModelDeleter,
-		loggertesting.WrapCheckLog(c),
-		s.mockWatcherFactory,
-	)
-	s.controllerDomainServices.EXPECT().Model().Return(domainWatchableService).AnyTimes()
-
-	s.mockState.EXPECT().InitialWatchActivatedModelsStatement().Return(
-		"SELECT uuid from model WHERE activated = true",
-	)
-	s.mockWatcherFactory.EXPECT().NewNamespaceMapperWatcher("model", changestream.Changed,
-		gomock.Any(), gomock.Any()).Return(s.mockStringsWatcher, nil)
-	s.mockStringsWatcher.EXPECT().Wait().AnyTimes().Return(nil)
-
-	mockController := newMockController()
 	config := modelworkermanager.Config{
-		Authority:                s.authority,
-		Logger:                   loggertesting.WrapCheckLog(c),
-		NewModelWorker:           s.startModelWorker,
-		ModelMetrics:             dummyModelMetrics{},
-		ErrorDelay:               time.Millisecond,
-		LogSinkGetter:            dummyLogSinkGetter{logger: c},
-		ProviderServicesGetter:   s.providerServicesGetter,
-		DomainServicesGetter:     s.domainServicesGetter,
-		ControllerDomainServices: s.controllerDomainServices,
-		HTTPClientGetter:         stubHTTPclientGetter{},
+		Authority:              s.authority,
+		Logger:                 loggertesting.WrapCheckLog(c),
+		NewModelWorker:         s.startModelWorker,
+		ModelMetrics:           dummyModelMetrics{},
+		ErrorDelay:             time.Millisecond,
+		LogSinkGetter:          dummyLogSinkGetter{logger: c},
+		ProviderServicesGetter: s.providerServicesGetter,
+		DomainServicesGetter:   s.domainServicesGetter,
+		ModelService:           s.modelService,
+		HTTPClientGetter:       stubHTTPClientGetter{},
 		GetControllerConfig: func(ctx context.Context, controllerConfigService modelworkermanager.ControllerConfigService) (controller.Config, error) {
 			return coretesting.FakeControllerConfig(), nil
 		},
@@ -378,7 +379,7 @@ func (s *suite) runKillTest(c *gc.C, kill killFunc, test testFunc) {
 	w, err := modelworkermanager.New(config)
 	c.Assert(err, jc.ErrorIsNil)
 	defer kill(c, w)
-	test(w, mockController)
+	test(w)
 }
 
 type dummyModelMetrics struct{}
@@ -402,10 +403,6 @@ type dummyLogSinkGetter struct {
 	corelogger.LoggerContextGetter
 
 	logger loggertesting.CheckLogger
-}
-
-func (l dummyLogSinkGetter) GetLogWriter(ctx context.Context, modelUUID coremodel.UUID) (corelogger.LogWriterCloser, error) {
-	return stubLogger{}, nil
 }
 
 func (l dummyLogSinkGetter) GetLoggerContext(ctx context.Context, modelUUID coremodel.UUID) (corelogger.LoggerContext, error) {
@@ -476,64 +473,4 @@ func (mock *mockWorker) Kill() {
 
 func (mock *mockWorker) Wait() error {
 	return mock.tomb.Wait()
-}
-
-type mockController struct {
-	testing.Stub
-	model mockModel
-}
-
-func newMockController() *mockController {
-	return &mockController{
-		model: mockModel{
-			migrationMode: state.MigrationModeNone,
-			modelType:     state.ModelTypeIAAS,
-		},
-	}
-}
-
-func (mock *mockController) Config() (controller.Config, error) {
-	mock.MethodCall(mock, "Config")
-	return make(controller.Config), nil
-}
-
-func (mock *mockController) Model(uuid string) (modelworkermanager.Model, func(), error) {
-	mock.MethodCall(mock, "Model", uuid)
-	if err := mock.NextErr(); err != nil {
-		return nil, nil, err
-	}
-	release := func() {
-		mock.MethodCall(mock, "release")
-	}
-	return &mock.model, release, nil
-}
-
-type fakeLogger struct {
-	modelworkermanager.RecordLogger
-}
-
-func (mock *mockController) RecordLogger(uuid string) (modelworkermanager.RecordLogger, error) {
-	mock.MethodCall(mock, "RecordLogger", uuid)
-	return &fakeLogger{}, nil
-}
-
-type mockModel struct {
-	migrationMode state.MigrationMode
-	modelType     state.ModelType
-}
-
-func (m *mockModel) MigrationMode() state.MigrationMode {
-	return m.migrationMode
-}
-
-func (m *mockModel) Type() state.ModelType {
-	return m.modelType
-}
-
-func (m *mockModel) Name() string {
-	return "doesn't matter for this test"
-}
-
-func (m *mockModel) Owner() names.UserTag {
-	return names.NewUserTag("anyone-is-fine")
 }

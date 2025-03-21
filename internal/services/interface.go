@@ -6,7 +6,8 @@ package services
 import (
 	"context"
 
-	"github.com/juju/juju/core/model"
+	coremodel "github.com/juju/juju/core/model"
+	"github.com/juju/juju/core/watcher"
 	accessservice "github.com/juju/juju/domain/access/service"
 	agentprovisionerservice "github.com/juju/juju/domain/agentprovisioner/service"
 	annotationService "github.com/juju/juju/domain/annotation/service"
@@ -45,6 +46,17 @@ import (
 	unitstateservice "github.com/juju/juju/domain/unitstate/service"
 	upgradeservice "github.com/juju/juju/domain/upgrade/service"
 )
+
+// ModelService provides access to the model services required by the
+// apiserver.
+type ModelService interface {
+	// WatchActivatedModels returns a watcher that emits an event containing the model UUID
+	// when a model becomes activated or an activated model receives an update.
+	WatchActivatedModels(ctx context.Context) (watcher.StringsWatcher, error)
+
+	// Model returns the model associated with the provided uuid.
+	Model(ctx context.Context, uuid coremodel.UUID) (coremodel.Model, error)
+}
 
 // ControllerDomainServices provides access to the services required by the
 // apiserver.
@@ -157,7 +169,7 @@ type DomainServices interface {
 // model.
 type DomainServicesGetter interface {
 	// ServicesForModel returns a DomainServices for the given model.
-	ServicesForModel(ctx context.Context, modelID model.UUID) (DomainServices, error)
+	ServicesForModel(ctx context.Context, modelID coremodel.UUID) (DomainServices, error)
 }
 
 // ProviderServices provides access to the services required by the
@@ -210,7 +222,7 @@ type ObjectStoreServices interface {
 // for a given model.
 type ObjectStoreServicesGetter interface {
 	// ServicesForModel returns a ObjectStoreServices for the given model.
-	ServicesForModel(modelUUID model.UUID) ObjectStoreServices
+	ServicesForModel(modelUUID coremodel.UUID) ObjectStoreServices
 }
 
 // ControllerLogSinkServices provides access to the services required by the

@@ -19,6 +19,7 @@ import (
 	"github.com/juju/juju/controller"
 	"github.com/juju/juju/core/http"
 	"github.com/juju/juju/core/logger"
+	modelservice "github.com/juju/juju/domain/model/service"
 	loggertesting "github.com/juju/juju/internal/logger/testing"
 	"github.com/juju/juju/internal/pki"
 	pkitest "github.com/juju/juju/internal/pki/test"
@@ -62,9 +63,9 @@ func (s *ManifoldSuite) SetUpTest(c *gc.C) {
 	s.state = &state.State{}
 	s.pool = &state.StatePool{}
 	s.domainServicesGetter = NewMockDomainServicesGetter(ctrl)
-	s.controllerDomainServices = NewMockDomainServices(ctrl)
+	s.controllerDomainServices = stubControllerDomainServices{}
 	s.providerServicesGetter = stubProviderServicesGetter{}
-	s.httpClientGetter = stubHTTPclientGetter{}
+	s.httpClientGetter = stubHTTPClientGetter{}
 	s.stub.ResetCalls()
 
 	s.logSinkGetter = dummyLogSinkGetter{}
@@ -168,15 +169,15 @@ func (s *ManifoldSuite) TestStart(c *gc.C) {
 	config.GetControllerConfig = nil
 
 	c.Assert(config, jc.DeepEquals, modelworkermanager.Config{
-		Authority:                s.authority,
-		ModelMetrics:             dummyModelMetrics{},
-		ErrorDelay:               jworker.RestartDelay,
-		Logger:                   s.logger,
-		LogSinkGetter:            dummyLogSinkGetter{},
-		ProviderServicesGetter:   providerServicesGetter{},
-		ControllerDomainServices: s.controllerDomainServices,
-		DomainServicesGetter:     s.domainServicesGetter,
-		HTTPClientGetter:         s.httpClientGetter,
+		Authority:              s.authority,
+		ModelMetrics:           dummyModelMetrics{},
+		ErrorDelay:             jworker.RestartDelay,
+		Logger:                 s.logger,
+		LogSinkGetter:          dummyLogSinkGetter{},
+		ProviderServicesGetter: providerServicesGetter{},
+		ModelService:           s.controllerDomainServices.Model(),
+		DomainServicesGetter:   s.domainServicesGetter,
+		HTTPClientGetter:       s.httpClientGetter,
 	})
 }
 
@@ -194,14 +195,6 @@ func (s *ManifoldSuite) startWorkerClean(c *gc.C) worker.Worker {
 	return w
 }
 
-type stubLogger struct {
-	logger.LogWriterCloser
-}
-
-func (stubLogger) Close() error {
-	return nil
-}
-
 type stubProviderServicesGetter struct {
 	services.ProviderServicesGetter
 }
@@ -214,6 +207,14 @@ func (s providerServicesGetter) ServicesForModel(_ string) modelworkermanager.Pr
 	return nil
 }
 
-type stubHTTPclientGetter struct {
+type stubHTTPClientGetter struct {
 	http.HTTPClientGetter
+}
+
+type stubControllerDomainServices struct {
+	services.ControllerDomainServices
+}
+
+func (s stubControllerDomainServices) Model() *modelservice.WatchableService {
+	return &modelservice.WatchableService{}
 }
