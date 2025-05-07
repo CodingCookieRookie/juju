@@ -160,7 +160,7 @@ func (c *ModelStatusAPI) modelStatus(ctx context.Context, tag string) (params.Mo
 		ModelTag:           tag,
 		OwnerTag:           model.Owner().String(),
 		Life:               life.Value(model.Life().String()),
-		Type:               string(model.Type()),
+		Type:               string(model.TypeOld()),
 		HostedMachineCount: hostedMachineCount,
 		ApplicationCount:   len(applications),
 		UnitCount:          unitCount,

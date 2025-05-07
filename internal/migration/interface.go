@@ -87,13 +87,12 @@ type Pool interface {
 // PrecheckModel describes the state interface a model as needed by
 // the migration prechecks.
 type PrecheckModel interface {
-	UUID() string
-	Name() string
-	Type() state.ModelType
+	UUIDOld() string
+	NameOld() string
+	TypeOld() state.ModelType
 	Owner() names.UserTag
 	Life() state.Life
 	MigrationMode() (state.MigrationMode, error)
-	CloudCredentialTag() (names.CloudCredentialTag, bool)
 }
 
 // PrecheckMachine describes the state interface for a machine needed

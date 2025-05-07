@@ -334,10 +334,10 @@ func (m *ModelManagerAPI) CreateModel(ctx context.Context, args params.ModelCrea
 			return result, errors.Trace(err)
 		}
 	} else {
-		cloudTag = names.NewCloudTag(controllerModel.CloudName())
+		cloudTag = names.NewCloudTag(controllerModel.CloudNameOld())
 	}
-	if cloudRegionName == "" && cloudTag.Id() == controllerModel.CloudName() {
-		cloudRegionName = controllerModel.CloudRegion()
+	if cloudRegionName == "" && cloudTag.Id() == controllerModel.CloudNameOld() {
+		cloudRegionName = controllerModel.CloudRegionOld()
 	}
 
 	err = m.authorizer.HasPermission(ctx, permission.SuperuserAccess, m.state.ControllerTag())
@@ -832,7 +832,7 @@ func (m *ModelManagerAPI) DestroyModels(ctx context.Context, args params.Destroy
 			// We should be able to directly access the model domain services
 			// because the model manager uses the MultiModelContext to access
 			// other models.
-			modelUUID := coremodel.UUID(stModel.UUID())
+			modelUUID := coremodel.UUID(stModel.UUIDOld())
 
 			// TODO (stickupkid): We can't the delete the model info when
 			// destroying the model at the moment. Attempting to delete the
@@ -952,18 +952,18 @@ func (m *ModelManagerAPI) getModelInfo(ctx context.Context, tag names.ModelTag, 
 	// read access otherwise we would've returned on the initial check at the
 	// beginning of this method.
 
-	modelUUID := model.UUID()
+	modelUUID := model.UUIDOld()
 
 	info := params.ModelInfo{
-		Name:           model.Name(),
-		Type:           string(model.Type()),
+		Name:           model.NameOld(),
+		Type:           string(model.TypeOld()),
 		UUID:           modelUUID,
 		ControllerUUID: m.controllerUUID.String(),
 		IsController:   st.IsController(),
 		OwnerTag:       model.Owner().String(),
 		Life:           life.Value(model.Life().String()),
-		CloudTag:       names.NewCloudTag(model.CloudName()).String(),
-		CloudRegion:    model.CloudRegion(),
+		CloudTag:       names.NewCloudTag(model.CloudNameOld()).String(),
+		CloudRegion:    model.CloudRegionOld(),
 	}
 
 	if cloudCredentialTag, ok := model.CloudCredentialTag(); ok {
@@ -1093,7 +1093,7 @@ func (m *ModelManagerAPI) getModelInfo(ctx context.Context, tag names.ModelTag, 
 		for _, backend := range backends {
 			name := backend.Name
 			if name == kubernetes.BackendName {
-				name = kubernetes.BuiltInName(model.Name())
+				name = kubernetes.BuiltInName(model.NameOld())
 			}
 			info.SecretBackends = append(info.SecretBackends, params.SecretBackendResult{
 				// Don't expose the id.

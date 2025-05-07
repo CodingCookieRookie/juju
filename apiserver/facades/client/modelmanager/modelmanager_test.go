@@ -795,7 +795,7 @@ func (s *modelManagerSuite) TestDumpModel(c *gc.C) {
 		state.ExportConfig{IgnoreIncompleteModel: true},
 		gomock.Any(),
 	).Times(1).Return(
-		&fakeModelDescription{ModelUUID: s.st.model.UUID()},
+		&fakeModelDescription{ModelUUID: s.st.model.UUIDOld()},
 		nil)
 	results := api.DumpModels(context.Background(), params.DumpModelRequest{
 		Entities: []params.Entity{{

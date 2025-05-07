@@ -1215,14 +1215,14 @@ type fakePool struct {
 func (p *fakePool) uuids() []string {
 	out := make([]string, len(p.models))
 	for i, model := range p.models {
-		out[i] = model.UUID()
+		out[i] = model.UUIDOld()
 	}
 	return out
 }
 
 func (p *fakePool) GetModel(uuid string) (migration.PrecheckModel, func(), error) {
 	for _, model := range p.models {
-		if model.UUID() == uuid {
+		if model.UUIDOld() == uuid {
 			return model, func() {}, nil
 		}
 	}
@@ -1239,15 +1239,15 @@ type fakeModel struct {
 	credential    string
 }
 
-func (m *fakeModel) Type() state.ModelType {
+func (m *fakeModel) TypeOld() state.ModelType {
 	return m.modelType
 }
 
-func (m *fakeModel) UUID() string {
+func (m *fakeModel) UUIDOld() string {
 	return m.uuid
 }
 
-func (m *fakeModel) Name() string {
+func (m *fakeModel) NameOld() string {
 	return m.name
 }
 

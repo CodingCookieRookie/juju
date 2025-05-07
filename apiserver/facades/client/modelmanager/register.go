@@ -50,7 +50,7 @@ func newFacadeV10(stdCtx context.Context, ctx facade.MultiModelContext) (*ModelM
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	modelUUID := model.UUID()
+	modelUUID := model.UUIDOld()
 
 	systemState, err := ctx.StatePool().SystemState()
 	if err != nil {
