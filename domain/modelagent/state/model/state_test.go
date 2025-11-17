@@ -133,6 +133,65 @@ VALUES (?, ?, ?, 0)`
 	return machineUUID
 }
 
+// addMachineWithBase adds a new machine to the model using the provided base.
+// The new machine's UUID is returned to the caller.
+func (s *modelStateSuite) addMachineWithNullableChannelBase(
+	c *tc.C, base corebase.Base, isNullChannel bool,
+) machine.UUID {
+	netNodeUUID, err := uuid.NewUUID()
+	c.Assert(err, tc.ErrorIsNil)
+	machineUUID := coremachinetesting.GenUUID(c)
+
+	netNodeInsert := `
+INSERT INTO net_node(uuid) VALUES (?)
+`
+	machineInsert := `
+INSERT INTO machine (uuid, name, net_node_uuid, life_id)
+VALUES (?, ?, ?, ?)
+`
+
+	machinePlatform := `
+INSERT INTO machine_platform (machine_uuid, os_id, channel, architecture_id)
+VALUES (?, ?, ?, 0)`
+
+	channel := sql.NullString{String: base.Channel.String(), Valid: true}
+	if isNullChannel {
+		channel = sql.NullString{Valid: false}
+	}
+
+	err = s.ModelTxnRunner().StdTxn(
+		c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, netNodeInsert, netNodeUUID.String())
+			if err != nil {
+				return err
+			}
+
+			_, err = tx.ExecContext(
+				ctx,
+				machineInsert,
+				machineUUID.String(),
+				machineUUID.String(),
+				netNodeUUID.String(),
+				life.Alive,
+			)
+			if err != nil {
+				return err
+			}
+
+			_, err = tx.ExecContext(
+				ctx,
+				machinePlatform,
+				machineUUID.String(),
+				0, // This is always 0 as we only support Ubuntu for now.
+				channel,
+			)
+			return err
+		},
+	)
+	c.Assert(err, tc.ErrorIsNil)
+	return machineUUID
+}
+
 // registerAgentBinary is a testing utility function that registers the fact
 // that an agent binary exists in the models store for the provided version. The
 // metadata for the newly created binary is returned to the caller upon creation.
@@ -1522,4 +1581,59 @@ func (s *modelStateSuite) TestUpdateLatestAgentVersionLessThanCurrentTarget(c *t
 
 	err := st.UpdateLatestAgentVersion(c.Context(), semversion.MustParse("4.1.0"))
 	c.Assert(err, tc.ErrorIs, modelagenterrors.LatestVersionDowngradeNotSupported)
+}
+
+func (s *modelStateSuite) TestGetAllMachineBases(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory())
+
+	machineUUID1 := s.addMachineWithBase(c, corebase.MakeDefaultBase(corebase.UbuntuOS, "24.04"))
+	machineBases, err := st.GetAllMachineBases(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(len(machineBases), tc.Equals, 1)
+
+	machineUUID2 := s.addMachineWithBase(c, corebase.MakeDefaultBase(corebase.UbuntuOS, "25.04"))
+	machineBases, err = st.GetAllMachineBases(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(len(machineBases), tc.Equals, 2)
+
+	c.Assert(machineBases[machineUUID1.String()].Channel, tc.Equals, "24.04/stable")
+	c.Assert(machineBases[machineUUID1.String()].OS, tc.Equals, "ubuntu")
+	c.Assert(machineBases[machineUUID2.String()].Channel, tc.Equals, "25.04/stable")
+	c.Assert(machineBases[machineUUID2.String()].OS, tc.Equals, "ubuntu")
+}
+
+func (s *modelStateSuite) TestGetAllMachineBasesNotFound(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory())
+
+	machineBases, err := st.GetAllMachineBases(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(len(machineBases), tc.Equals, 0)
+}
+
+func (s *modelStateSuite) TestGetAllMachineBasesWithNullChannels(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory())
+
+	machineUUID1 := s.addMachineWithNullableChannelBase(c, corebase.Base{OS: corebase.UbuntuOS}, true)
+	machineBases, err := st.GetAllMachineBases(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(len(machineBases), tc.Equals, 1)
+
+	machineUUID2 := s.addMachineWithNullableChannelBase(c, corebase.Base{OS: corebase.UbuntuOS}, true)
+	machineBases, err = st.GetAllMachineBases(c.Context())
+	c.Assert(err, tc.ErrorIsNil)
+	c.Assert(len(machineBases), tc.Equals, 2)
+
+	c.Assert(machineBases[machineUUID1.String()].Channel, tc.Equals, corebase.Channel{})
+	c.Assert(machineBases[machineUUID1.String()].OS, tc.Equals, "ubuntu")
+	c.Assert(machineBases[machineUUID1.String()].Channel, tc.Equals, corebase.Channel{})
+	c.Assert(machineBases[machineUUID2.String()].OS, tc.Equals, "ubuntu")
+}
+
+// An error is returned when attempting to parse an empty channel.
+func (s *modelStateSuite) TestGetAllMachineBasesWithEmptyChannels(c *tc.C) {
+	st := NewState(s.TxnRunnerFactory())
+
+	s.addMachineWithNullableChannelBase(c, corebase.Base{OS: corebase.UbuntuOS}, false)
+	_, err := st.GetAllMachineBases(c.Context())
+	c.Assert(err, tc.ErrorIs, coreerrors.NotValid)
 }

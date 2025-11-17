@@ -38,12 +38,6 @@ type AgentBinaryFinder interface {
 type agentBinaryFinderFunc func(semversion.Number) (bool, error)
 
 type ModelState interface {
-	// GetMachineCountNotUsingBase returns the number of machines that are not
-	// using one of the supplied bases. If no machines exist in the model or if
-	// no machines exist that are using a base not in the set provided, zero is
-	// returned with no error.
-	GetMachineCountNotUsingBase(context.Context, []corebase.Base) (int, error)
-
 	// GetMachineAgentBinaryMetadata reports the agent binary metadata that is
 	// currently running a given machine.
 	//
@@ -192,6 +186,11 @@ type ModelState interface {
 	// - [github.com/juju/juju/core/errors.NotSupported] if the architecture is
 	// not known to the database.
 	SetUnitRunningAgentBinaryVersion(context.Context, coreunit.UUID, agentbinary.Version) error
+
+	// GetAllMachineBases returns a map of the base information recorded for every machine
+	// in the model, keyed by machine UUID.
+	// Note that the Channel field may be empty or NULL in the underlying database.
+	GetAllMachineBases(ctx context.Context) (map[string]corebase.Base, error)
 }
 
 // ControllerState defines the interface for interacting with the
@@ -884,14 +883,14 @@ func (s *Service) validateModelCanBeUpgraded(
 
 	// TODO(@adisazhar123): discussed with @tlm we can comment out for now.
 	// Will require a future effort to fix this.
-	//failedMachineCount, err := s.modelSt.GetMachineCountNotUsingBase(ctx, corebase.WorkloadBases())
-	//if err != nil {
-	//	return errors.Errorf(
-	//		"getting count of machines in model not running a supported workload base: %w",
-	//		err,
-	//	)
-	//}
-	//
+	// failedMachineCount, err := s.modelSt.GetMachineCountNotUsingBase(ctx, corebase.WorkloadBases())
+	// if err != nil {
+	// 	return errors.Errorf(
+	// 		"getting count of machines in model not running a supported workload base: %w",
+	// 		err,
+	// 	)
+	// }
+
 	//if failedMachineCount > 0 {
 	//	return modelagenterrors.ModelUpgradeBlocker{
 	//		Reason: fmt.Sprintf(
@@ -1096,6 +1095,7 @@ func (s *Service) RunPreUpgradeChecksToVersion(
 // upgraded to that version using [Service.RunPreUpgradeChecksToVersionWithStream].
 //
 // The following errors may be returned:
+
 //   - [coreerrors.NotValid] if the supplied agent stream is invalid.
 //   - [modelagenterrors.DowngradeNotSupported] if a downgrade is requested.
 //   - [modelagenterrors.AgentVersionNotSupported] if the target version

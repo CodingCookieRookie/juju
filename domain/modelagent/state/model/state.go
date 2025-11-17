@@ -1539,3 +1539,61 @@ UPDATE SET version = excluded.version,
 
 	return nil
 }
+
+// GetAllMachineBases returns a map of the base information recorded for every machine
+// in the model, keyed by machine UUID.
+// Note that the Channel field may be empty or NULL in the underlying database.
+func (st *State) GetAllMachineBases(ctx context.Context) (map[string]corebase.Base, error) {
+	db, err := st.DB(ctx)
+	if err != nil {
+		return nil, errors.Capture(err)
+	}
+
+	stmt, err := st.Prepare(`
+SELECT mp.machine_uuid AS &machineBase.machine_uuid,
+       os.name AS &machineBase.os,
+       mp.channel AS &machineBase.channel
+FROM   machine_platform AS mp
+JOIN   os ON mp.os_id = os.id
+`, machineBase{})
+	if err != nil {
+		return nil, errors.Capture(err)
+	}
+
+	machineBases := []machineBase{}
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		err := tx.Query(ctx, stmt).GetAll(&machineBases)
+		if err != nil && !errors.Is(err, sqlair.ErrNoRows) {
+			return errors.Errorf(
+				"getting machine bases from database: %w", err,
+			)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Capture(err)
+	}
+
+	m := make(map[string]corebase.Base, len(machineBases))
+	for _, machineBase := range machineBases {
+		agentMachineBase := corebase.Base{
+			OS: machineBase.OS,
+		}
+		if machineBase.Channel.Valid {
+			machineChannel, err := corebase.ParseChannel(machineBase.Channel.String)
+			if err != nil {
+				return nil, errors.Errorf(
+					"parsing machine %q channel %q: %w",
+					machineBase.MachineUUID,
+					machineBase.Channel.String,
+					err,
+				)
+			}
+			agentMachineBase.Channel = machineChannel
+		}
+		m[machineBase.MachineUUID] = agentMachineBase
+	}
+
+	return m, nil
+}
