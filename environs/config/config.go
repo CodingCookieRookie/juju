@@ -561,7 +561,7 @@ var defaultConfigValues = map[string]interface{}{
 	NetBondReconfigureDelayKey: 17,
 	ContainerNetworkingMethod:  "",
 
-	DefaultBaseKey: "",
+	DefaultBaseKey: jujuversion.DefaultSupportedLTSBase().String(),
 
 	ProvisionerHarvestModeKey:       HarvestDestroyed.String(),
 	NumProvisionWorkersKey:          16,
