@@ -433,6 +433,7 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 	secret := resources.NewSecret(a.client.CoreV1().Secrets(a.namespace), a.namespace, a.secretName(), sec)
 	applier.Apply(secret)
 
+	logger.Infof("alvin sa name: %v", a.serviceAccountName())
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        a.serviceAccountName(),
@@ -442,10 +443,16 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 		AutomountServiceAccountToken: pointer.Bool(false),
 	}
 	serviceAccount := resources.NewServiceAccount(a.client.CoreV1().ServiceAccounts(a.namespace), a.namespace, a.serviceAccountName(), sa)
+	logger.Infof("alvin serviceAccount.Labels: %v", serviceAccount.Labels)
+	logger.Infof("alvin serviceAccount: %+v", serviceAccount)
 
 	// We need to get the service account to preserve any existing managed-by label.
-	if err := serviceAccount.Get(context.Background()); err != nil && !errors.Is(err, errors.NotFound) {
+	err := serviceAccount.Get(context.Background())
+	if err != nil && !errors.Is(err, errors.NotFound) {
 		return errors.Annotatef(err, "getting service account %q", a.serviceAccountName())
+	}
+	if errors.Is(err, errors.NotFound) {
+		logger.Infof("alvin service account %q not found", a.serviceAccountName())
 	}
 
 	// Avoid overriding an existing app.kubernetes.io/managed-by label.
@@ -456,12 +463,17 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 	if serviceAccount.Labels != nil {
 		existingManagedByLabel = serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged]
 	}
+	logger.Infof("alvin existingManagedByLabel: %v", existingManagedByLabel)
+
 	serviceAccount.Labels = a.labels()
 	if serviceAccount.Labels != nil && existingManagedByLabel != "" {
 		serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged] = existingManagedByLabel
 	}
+	logger.Infof("alvin serviceAccount.Labels: %v", serviceAccount.Labels)
 
 	applier.Apply(serviceAccount)
+	logger.Infof("alvin sa: %+v", sa)
+	logger.Infof("alvin serviceAccount.ServiceAccount: %+v", sa)
 
 	r := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
