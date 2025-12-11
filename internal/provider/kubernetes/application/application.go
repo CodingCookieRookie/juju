@@ -44,6 +44,7 @@ import (
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/internal/provider/kubernetes/constants"
+	k8sconstants "github.com/juju/juju/internal/provider/kubernetes/constants"
 	"github.com/juju/juju/internal/provider/kubernetes/pebble"
 	"github.com/juju/juju/internal/provider/kubernetes/resources"
 	"github.com/juju/juju/internal/provider/kubernetes/storage"
@@ -436,12 +437,30 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        a.serviceAccountName(),
 			Namespace:   a.namespace,
-			Labels:      a.labels(),
 			Annotations: a.annotations(config),
 		},
 		AutomountServiceAccountToken: pointer.Bool(false),
 	}
 	serviceAccount := resources.NewServiceAccount(a.client.CoreV1().ServiceAccounts(a.namespace), a.namespace, a.serviceAccountName(), sa)
+
+	// We need to get the service account to preserve any existing managed-by label.
+	if err := serviceAccount.Get(context.Background()); err != nil && !errors.Is(err, errors.NotFound) {
+		return errors.Annotatef(err, "getting service account %q", a.serviceAccountName())
+	}
+
+	// Avoid overriding an existing app.kubernetes.io/managed-by label.
+	// For example, the spark-integration-hub-k8s and kyuubi-k8s integration
+	// relies on the label selector app.kubernetes.io/managed-by=spark8t, which is used by a
+	// watcher service to inject additional Spark configuration via K8s secrets.
+	var existingManagedByLabel string
+	if serviceAccount.Labels != nil {
+		existingManagedByLabel = serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged]
+	}
+	serviceAccount.Labels = a.labels()
+	if serviceAccount.Labels != nil && existingManagedByLabel != "" {
+		serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged] = existingManagedByLabel
+	}
+
 	applier.Apply(serviceAccount)
 
 	r := &rbacv1.Role{
