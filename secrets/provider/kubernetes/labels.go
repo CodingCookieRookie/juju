@@ -30,7 +30,7 @@ func labelsForServiceAccount(modelName string, modelUUID string) labels.Set {
 		labelJujuSecretModelName:     modelName,
 		labelJujuSecretModelUUID:     modelUUID,
 	}
-	return utils.LabelsMerge(utils.LabelsJuju, secretLabels)
+	return utils.LabelsMerge(utils.LabelsJuju2, secretLabels)
 }
 
 func modelLabelSelector(modelName string) labels.Selector {

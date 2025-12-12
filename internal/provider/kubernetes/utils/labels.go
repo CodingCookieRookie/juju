@@ -21,6 +21,11 @@ var (
 		constants.LabelKubernetesAppManaged: "juju",
 	}
 
+	// LabelsJuju is a common set
+	LabelsJuju2 = map[string]string{
+		constants.LabelKubernetesAppManaged: "alvin",
+	}
+
 	// LabelsJujuModelOperatorDisableWebhook is a set of labels needed on a
 	// given object to disable admission webhook validation.
 	LabelsJujuModelOperatorDisableWebhook = map[string]string{
