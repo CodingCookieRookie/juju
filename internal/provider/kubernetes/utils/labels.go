@@ -23,7 +23,12 @@ var (
 
 	// LabelsJuju is a common set
 	LabelsJuju2 = map[string]string{
-		constants.LabelKubernetesAppManaged: "alvin",
+		constants.LabelKubernetesAppManaged: "alvin2",
+	}
+
+	// LabelsJuju is a common set
+	LabelsJuju3 = map[string]string{
+		constants.LabelKubernetesAppManaged: "alvin3",
 	}
 
 	// LabelsJujuModelOperatorDisableWebhook is a set of labels needed on a
@@ -151,6 +156,21 @@ func LabelsForAppCreated(appName, modelName, modelUUID, controllerUUID string, l
 		modelName, modelUUID, controllerUUID, labelVersion,
 	)
 	return LabelsMerge(appLabels, modelLabels, LabelsJuju)
+}
+
+// LabelsForAppCreated returns the labels that should be on a k8s object that has been
+// created directly by a given application.
+func LabelsForAppCreatedAlvin(appName, modelName, modelUUID, controllerUUID string, labelVersion constants.LabelVersion) labels.Set {
+	appLabels := LabelForKeyValue(
+		constants.LabelJujuAppCreatedBy, appName,
+	)
+	if labelVersion < constants.LabelVersion2 {
+		return appLabels
+	}
+	modelLabels := LabelsForModel(
+		modelName, modelUUID, controllerUUID, labelVersion,
+	)
+	return LabelsMerge(appLabels, modelLabels, LabelsJuju3)
 }
 
 // SelectorLabelsForApp returns the pod selector labels that should be on

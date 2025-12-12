@@ -464,11 +464,11 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 		existingManagedByLabel = serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged]
 	}
 	logger.Infof("alvin existingManagedByLabel: %v", existingManagedByLabel)
-
-	serviceAccount.Labels = a.labels()
-	if serviceAccount.Labels != nil && existingManagedByLabel != "" {
-		serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged] = existingManagedByLabel
-	}
+	//
+	// serviceAccount.Labels = a.labels()
+	// if serviceAccount.Labels != nil && existingManagedByLabel != "" {
+	// 	serviceAccount.Labels[k8sconstants.LabelKubernetesAppManaged] = existingManagedByLabel
+	// }
 	logger.Infof("alvin serviceAccount.Labels: %v", serviceAccount.Labels)
 
 	applier.Apply(serviceAccount)

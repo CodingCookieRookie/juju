@@ -198,7 +198,7 @@ func patchForLabels(
 	controllerUUID, modelUUID, modelName string) []patchOperation {
 	patches := []patchOperation{}
 
-	neededLabels := providerutils.LabelsForAppCreated(
+	neededLabels := providerutils.LabelsForAppCreatedAlvin(
 		appName, modelName, modelUUID, controllerUUID, labelVersion)
 
 	if len(labels) == 0 {
