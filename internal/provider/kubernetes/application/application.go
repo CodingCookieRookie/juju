@@ -436,6 +436,7 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 	logger.Infof("alvin sa name: %v", a.serviceAccountName())
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
+			Labels:      a.labels(),
 			Name:        a.serviceAccountName(),
 			Namespace:   a.namespace,
 			Annotations: a.annotations(config),
@@ -443,8 +444,6 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 		AutomountServiceAccountToken: pointer.Bool(false),
 	}
 	serviceAccount := resources.NewServiceAccount(a.client.CoreV1().ServiceAccounts(a.namespace), a.namespace, a.serviceAccountName(), sa)
-	logger.Infof("alvin serviceAccount.Labels: %v", serviceAccount.Labels)
-	logger.Infof("alvin serviceAccount: %+v", serviceAccount)
 
 	// We need to get the service account to preserve any existing managed-by label.
 	err := serviceAccount.Get(context.Background())
@@ -454,6 +453,8 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 	if errors.Is(err, errors.NotFound) {
 		logger.Infof("alvin service account %q not found", a.serviceAccountName())
 	}
+	logger.Infof("alvin2 serviceAccount.Labels: %v", serviceAccount.Labels)
+	logger.Infof("alvin2 serviceAccount: %+v", serviceAccount)
 
 	// Avoid overriding an existing app.kubernetes.io/managed-by label.
 	// For example, the spark-integration-hub-k8s and kyuubi-k8s integration
