@@ -215,17 +215,13 @@ func patchForLabels(
 	logger.Infof("alvinc neededLabels: %+v", neededLabels)
 
 	for k, v := range neededLabels {
-		logger.Infof("alvinc key: %v | value: %v", k, v)
+		logger.Infof("alvinc2 key: %v | value: %v", k, v)
+		if k == constants.LabelKubernetesAppManaged {
+			logger.Infof("alvinc2 skipped at key %s with value %s", k, v)
+			continue
+		}
+
 		if extVal, found := labels[k]; found && extVal != v {
-			if k == constants.LabelKubernetesAppManaged {
-				logger.Infof("alvinc replaced at key %s with value %s", k, extVal)
-				patches = append(patches, patchOperation{
-					Op:    replaceOp,
-					Path:  fmt.Sprintf("/metadata/labels/%s", patchEscape(k)),
-					Value: patchEscape(extVal),
-				})
-				continue
-			}
 			patches = append(patches, patchOperation{
 				Op:    replaceOp,
 				Path:  fmt.Sprintf("/metadata/labels/%s", patchEscape(k)),
