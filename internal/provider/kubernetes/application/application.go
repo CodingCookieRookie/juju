@@ -432,13 +432,13 @@ func (a *app) applyServiceAccountAndSecrets(applier resources.Applier, config ca
 	secret := resources.NewSecret(a.client.CoreV1().Secrets(a.namespace), a.namespace, a.secretName(), sec)
 	applier.Apply(secret)
 
-	logger.Infof("alvin2 applyServiceAccountAndSecrets with serviceAccountName: %s", a.serviceAccountName())
-	logger.Infof("alvin2 applyServiceAccountAndSecrets with labels: %s", a.labels())
+	logger.Infof("alvin3 applyServiceAccountAndSecrets with serviceAccountName: %s", a.serviceAccountName())
+	logger.Infof("alvin3 applyServiceAccountAndSecrets with labels: %s", a.labels())
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        a.serviceAccountName(),
 			Namespace:   a.namespace,
-			Labels:      a.labels(),
+			Labels:      a.selectorLabels(),
 			Annotations: a.annotations(config),
 		},
 		AutomountServiceAccountToken: pointer.Bool(false),
