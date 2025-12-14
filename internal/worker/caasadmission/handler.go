@@ -152,9 +152,11 @@ func admissionHandler(logger Logger, rbacMapper RBACMapper, labelVersion constan
 				http.StatusInternalServerError)
 			return
 		}
+		logger.Infof("alvinc metaObj name: %+v", metaObj.Name)
+		logger.Infof("alvinc metaObj: %+v", metaObj)
 
 		patchJSON, err := json.Marshal(
-			patchForLabels(metaObj.Labels, appName, labelVersion, controllerUUID, modelUUID, modelName))
+			patchForLabels(logger, metaObj.Labels, appName, labelVersion, controllerUUID, modelUUID, modelName))
 		if err != nil {
 			http.Error(res,
 				fmt.Sprintf("marshalling patch object to json: %v", err),
@@ -192,6 +194,7 @@ func patchEscape(s string) string {
 }
 
 func patchForLabels(
+	logger Logger,
 	labels map[string]string,
 	appName string,
 	labelVersion constants.LabelVersion,
@@ -208,9 +211,16 @@ func patchForLabels(
 			Value: map[string]string{},
 		})
 	}
+	logger.Infof("alvinc labels: %+v", labels)
+	logger.Infof("alvinc neededLabels: %+v", neededLabels)
 
 	for k, v := range neededLabels {
+		logger.Infof("alvinc key: %v | value: %v", k, v)
 		if extVal, found := labels[k]; found && extVal != v {
+			if k == constants.LabelKubernetesAppManaged {
+				logger.Infof("alvinc skipped at key %s with value %s", k, extVal)
+				continue
+			}
 			patches = append(patches, patchOperation{
 				Op:    replaceOp,
 				Path:  fmt.Sprintf("/metadata/labels/%s", patchEscape(k)),
