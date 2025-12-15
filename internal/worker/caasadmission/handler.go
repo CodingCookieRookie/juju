@@ -211,11 +211,11 @@ func patchForLabels(
 	}
 
 	for k, v := range neededLabels {
-		if k == constants.LabelKubernetesAppManaged {
-			logger.Debugf("skipping mutation for label key %q for app name: %q", k, appName)
-			continue
-		}
 		if extVal, found := labels[k]; found && extVal != v {
+			if k == constants.LabelKubernetesAppManaged {
+				logger.Infof("skipping mutation for label key: %q | app name: %q| extVal: %q", k, appName, extVal)
+				continue
+			}
 			patches = append(patches, patchOperation{
 				Op:    replaceOp,
 				Path:  fmt.Sprintf("/metadata/labels/%s", patchEscape(k)),
