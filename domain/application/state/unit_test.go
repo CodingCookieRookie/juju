@@ -875,7 +875,7 @@ func (s *unitStateSuite) TestUpdateUnitCharm(c *tc.C) {
 	c.Assert(gotUUID, tc.Equals, id.String())
 }
 
-func (s *unitStateSuite) TestUpdateUnitCharmUpdatesUnitStorageDirectivesCharmUUID(c *tc.C) {
+func (s *unitStateSuite) TestUpdateUnitCharmUpdateUnitStorageDirectivesCharmUUID(c *tc.C) {
 	// Arrange a unit with storage definitions on its current charm.
 	storage := map[string]charm.Storage{
 		"st1": {
@@ -964,8 +964,8 @@ func (s *unitStateSuite) TestUpdateUnitCharmUpdatesUnitStorageDirectivesCharmUUI
 	c.Assert(err, tc.ErrorIsNil)
 
 	var (
-		gotUnitCharmUUID      string
-		storageDirectiveCount int
+		gotUnitCharmUUID  string
+		oldDirectiveCount int
 	)
 	// Assert that both unit and unit storage directives now reference the new charm UUID.
 	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
@@ -973,19 +973,37 @@ func (s *unitStateSuite) TestUpdateUnitCharmUpdatesUnitStorageDirectivesCharmUUI
 			Scan(&gotUnitCharmUUID); err != nil {
 			return err
 		}
-		return tx.QueryRowContext(
+		if err := tx.QueryRowContext(
 			ctx,
 			"SELECT count(*) FROM unit_storage_directive WHERE unit_uuid=? AND charm_uuid=?",
 			unitUUID.String(),
-			id.String(),
-		).Scan(&storageDirectiveCount)
+			currentCharm,
+		).Scan(&oldDirectiveCount); err != nil {
+			return err
+		}
+		return nil
 	})
+	unitStorageDirectives := s.getUnitStorageDirectivesForCharm(c, unitUUID.String(), id.String())
 	c.Assert(err, tc.ErrorIsNil)
 	c.Check(gotUnitCharmUUID, tc.Equals, id.String())
-	c.Check(storageDirectiveCount, tc.Equals, 2)
+	c.Check(oldDirectiveCount, tc.Equals, 0)
+	c.Check(unitStorageDirectives, tc.DeepEquals, []unitStorageDirectiveValue{
+		{
+			StorageName:     "st1",
+			StoragePoolUUID: storagePoolID.String(),
+			SizeMiB:         4096,
+			Count:           2,
+		},
+		{
+			StorageName:     "st2",
+			StoragePoolUUID: storagePoolID.String(),
+			SizeMiB:         8192,
+			Count:           1,
+		},
+	})
 }
 
-func (s *unitStateSuite) TestUpdateUnitCharmAddsNewUnitStorageDirectives(c *tc.C) {
+func (s *unitStateSuite) TestUpdateUnitCharmAddNewUnitStorageDirectives(c *tc.C) {
 	// Arrange a unit with one existing storage definition on the current charm.
 	oldStorage := map[string]charm.Storage{
 		"st1": {
@@ -1076,10 +1094,8 @@ func (s *unitStateSuite) TestUpdateUnitCharmAddsNewUnitStorageDirectives(c *tc.C
 	c.Assert(err, tc.ErrorIsNil)
 
 	var (
-		storageDirectiveCount int
-		st2Name               string
-		st2Size               int
-		st2Count              int
+		oldDirectiveCount int
+		st2InstanceCount  int
 	)
 
 	// Assert that the newly defined storage is inserted for the existing unit.
@@ -1088,24 +1104,43 @@ func (s *unitStateSuite) TestUpdateUnitCharmAddsNewUnitStorageDirectives(c *tc.C
 			ctx,
 			"SELECT count(*) FROM unit_storage_directive WHERE unit_uuid=? AND charm_uuid=?",
 			unitUUID.String(),
-			id.String(),
-		).Scan(&storageDirectiveCount); err != nil {
+			currentCharm,
+		).Scan(&oldDirectiveCount); err != nil {
 			return err
 		}
-		return tx.QueryRowContext(
-			ctx,
-			`SELECT storage_name, size_mib, count
-			 FROM unit_storage_directive
-			 WHERE unit_uuid=? AND charm_uuid=? AND storage_name='st2'`,
-			unitUUID.String(),
-			id.String(),
-		).Scan(&st2Name, &st2Size, &st2Count)
+		return nil
 	})
 	c.Assert(err, tc.ErrorIsNil)
-	c.Check(storageDirectiveCount, tc.Equals, 2)
-	c.Check(st2Name, tc.Equals, "st2")
-	c.Check(st2Size, tc.Equals, 8192)
-	c.Check(st2Count, tc.Equals, 1)
+	unitStorageDirectives := s.getUnitStorageDirectivesForCharm(c, unitUUID.String(), id.String())
+
+	// Assert that the new storage instance is created for the unit.
+	err = s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		return tx.QueryRowContext(
+			ctx,
+			`SELECT count(*)
+			 FROM storage_instance si
+			 JOIN storage_unit_owner suo ON suo.storage_instance_uuid = si.uuid
+			 WHERE suo.unit_uuid=? AND si.storage_name='st2'`,
+			unitUUID.String(),
+		).Scan(&st2InstanceCount)
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	c.Check(oldDirectiveCount, tc.Equals, 0)
+	c.Check(unitStorageDirectives, tc.DeepEquals, []unitStorageDirectiveValue{
+		{
+			StorageName:     "st1",
+			StoragePoolUUID: oldPoolID.String(),
+			SizeMiB:         4096,
+			Count:           2,
+		},
+		{
+			StorageName:     "st2",
+			StoragePoolUUID: newPoolID.String(),
+			SizeMiB:         8192,
+			Count:           1,
+		},
+	})
+	c.Check(st2InstanceCount, tc.Equals, 1)
 }
 
 func (s *unitStateSuite) TestGetUnitRefreshAttributes(c *tc.C) {
@@ -1957,6 +1992,50 @@ func (s *unitStateSubordinateSuite) createSubordinateApplication(c *tc.C, name s
 	c.Assert(err, tc.ErrorIsNil)
 
 	return appID
+}
+
+type unitStorageDirectiveValue struct {
+	StorageName     string
+	StoragePoolUUID string
+	SizeMiB         int
+	Count           int
+}
+
+func (s *unitStateSuite) getUnitStorageDirectivesForCharm(
+	c *tc.C, unitUUID, charmUUID string,
+) []unitStorageDirectiveValue {
+	var directives []unitStorageDirectiveValue
+	err := s.TxnRunner().StdTxn(c.Context(), func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(
+			ctx,
+			`SELECT storage_name, storage_pool_uuid, size_mib, count
+			 FROM unit_storage_directive
+			 WHERE unit_uuid=? AND charm_uuid=?
+			 ORDER BY storage_name`,
+			unitUUID,
+			charmUUID,
+		)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+
+		for rows.Next() {
+			var directive unitStorageDirectiveValue
+			if err := rows.Scan(
+				&directive.StorageName,
+				&directive.StoragePoolUUID,
+				&directive.SizeMiB,
+				&directive.Count,
+			); err != nil {
+				return err
+			}
+			directives = append(directives, directive)
+		}
+		return rows.Err()
+	})
+	c.Assert(err, tc.ErrorIsNil)
+	return directives
 }
 
 func deptr[T any](v *T) T {
