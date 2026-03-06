@@ -26,6 +26,7 @@ import (
 	"github.com/juju/juju/core/devices"
 	"github.com/juju/juju/core/instance"
 	coremachine "github.com/juju/juju/core/machine"
+	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/network"
 	coreunit "github.com/juju/juju/core/unit"
 	"github.com/juju/juju/core/watcher/eventsource"
@@ -38,6 +39,7 @@ import (
 	internalcharm "github.com/juju/juju/domain/deployment/charm"
 	"github.com/juju/juju/domain/ipaddress"
 	"github.com/juju/juju/domain/life"
+	modelerrors "github.com/juju/juju/domain/model/errors"
 	domainnetwork "github.com/juju/juju/domain/network"
 	domainsequence "github.com/juju/juju/domain/sequence"
 	sequencestate "github.com/juju/juju/domain/sequence/state"
@@ -3722,4 +3724,34 @@ WHERE application_uuid = $entityUUID.uuid;
 	}
 
 	return nil
+}
+
+// GetModelType returns the model type for the given model UUID.
+func (s *State) GetModelType(ctx context.Context, modelUUID model.UUID) (model.ModelType, error) {
+	db, err := s.DB(ctx)
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+
+	mDetails := modelDetails{UUID: modelUUID}
+	stmt, err := s.Prepare(`
+SELECT mt.type AS &modelDetails.model_type
+FROM   model m
+JOIN   model_type mt ON mt.id = model_type_id
+WHERE  m.uuid = $modelDetails.uuid
+`, modelDetails{})
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	err = db.Txn(ctx, func(ctx context.Context, tx *sqlair.TX) error {
+		err := tx.Query(ctx, stmt, mDetails).Get(&mDetails)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.Errorf("cannot get model type for model %q: %w", modelUUID, modelerrors.NotFound)
+		}
+		return errors.Capture(err)
+	})
+	if err != nil {
+		return "", errors.Capture(err)
+	}
+	return mDetails.Type, nil
 }
