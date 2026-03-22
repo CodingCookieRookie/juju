@@ -25,9 +25,9 @@ run_root_disk_source_default() {
 run_root_disk_source_valid() {
 	echo
 
-	file="${TEST_DIR}/test-root-disk-source.log"
+	file="${TEST_DIR}/test-root-disk-source-valid.log"
 
-	ensure "test-root-disk-source" "${file}"
+	ensure "test-root-disk-source-valid" "${file}"
 
 	# Deploy nginx with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
 	juju deploy nginx --channel latest/edge --constraints "root-disk-source=pd-ssd"
@@ -44,7 +44,7 @@ run_root_disk_source_valid() {
 	fi
 	echo "OK: boot disk type is pd-ssd"
 
-	destroy_model "test-root-disk-source"
+	destroy_model "test-root-disk-source-valid"
 }
 
 run_root_disk_source_local() {
@@ -57,25 +57,18 @@ run_root_disk_source_local() {
 	# Deploy nginx with local-ssd — deploy succeeds but machine provisioning should fail.
 	juju deploy nginx --channel latest/edge --constraints "root-disk-source=local-ssd"
 
-	# Wait for the machine failure message to appear in juju status.
-	attempt=0
-	max_attempts=30
-	while [ "${attempt}" -lt "${max_attempts}" ]; do
-		status_output="$(juju status --format=yaml 2>&1)"
-		machine_msg="$(echo "${status_output}" | yq -r '.machines["0"]["machine-status"]["message"] // empty')"
-		if echo "${machine_msg}" | grep -q "local SSD disk storage not valid"; then
-			echo "OK: local-ssd correctly rejected with message: ${machine_msg}"
-			destroy_model "test-root-disk-source-local"
-			return 0
-		fi
-		echo "[+] (attempt ${attempt}) waiting for machine failure message..."
-		sleep 10
-		attempt=$((attempt + 1))
-	done
-
-	echo "FAIL: expected 'local SSD disk storage not valid' in machine status, got: ${machine_msg}"
-	destroy_model "test-root-disk-source-local"
-	return 1
+	echo "Waiting for status failure message indicating local-ssd is not valid..."
+	if ( wait_for "local SSD disk storage not valid" '.machines["0"]["machine-status"]["message"]' ); then
+		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
+		echo "OK: local-ssd correctly rejected with message: ${machine_msg}"
+		destroy_model "test-root-disk-source-local"
+		return 0
+	else
+		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
+		echo "FAIL: expected 'local SSD disk storage not valid' in machine status, got: ${machine_msg}"
+		destroy_model "test-root-disk-source-local"
+		return 1
+	fi
 }
 
 run_root_disk_source_invalid() {
@@ -88,25 +81,18 @@ run_root_disk_source_invalid() {
 	# Deploy nginx with an unknown disk type — deploy succeeds but machine provisioning should fail with "not valid".
 	juju deploy nginx --channel latest/edge --constraints "root-disk-source=invalid-disk"
 
-	# Wait for the machine failure message to appear in juju status.
-	attempt=0
-	max_attempts=30
-	while [ "${attempt}" -lt "${max_attempts}" ]; do
-		status_output="$(juju status --format=yaml 2>&1)"
-		machine_msg="$(echo "${status_output}" | yq -r '.machines["0"]["machine-status"]["message"] // empty')"
-		if echo "${machine_msg}" | grep -q 'root disk source "invalid-disk" not valid'; then
-			echo "OK: unknown disk type correctly rejected with message: ${machine_msg}"
-			destroy_model "test-root-disk-source-invalid"
-			return 0
-		fi
-		echo "[+] (attempt ${attempt}) waiting for machine failure message..."
-		sleep 10
-		attempt=$((attempt + 1))
-	done
-
-	echo "FAIL: expected 'root disk source \"invalid-disk\" not valid' in machine status, got: ${machine_msg}"
-	destroy_model "test-root-disk-source-invalid"
-	return 1
+	echo "Waiting for status failure message indicating invalid disk type is not valid..."
+	if ( wait_for 'invalid-disk' '.machines["0"]["machine-status"]["message"]' ); then
+		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
+		echo "OK: unknown disk type correctly rejected with message: ${machine_msg}"
+		destroy_model "test-root-disk-source-invalid"
+		return 0
+	else
+		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
+		echo "FAIL: expected 'root disk source \"invalid-disk\" not valid' in machine status, got: ${machine_msg}"
+		destroy_model "test-root-disk-source-invalid"
+		return 1
+	fi
 }
 
 test_root_disk_source() {
