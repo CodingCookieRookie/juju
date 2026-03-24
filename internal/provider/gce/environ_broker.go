@@ -420,6 +420,8 @@ func (env *environ) getHardwareCharacteristics(spec *instances.InstanceSpec, ins
 		AvailabilityZone: &zone,
 		// Tags: not supported in GCE.
 	}
+
+	// TODO: retrieve root disk source from actual provisioned disk info.
 	if cons.HasRootDiskSource() {
 		hwc.RootDiskSource = cons.RootDiskSource
 	}

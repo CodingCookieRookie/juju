@@ -424,13 +424,19 @@ func (env *environ) getHardwareCharacteristics(
 	if location == "none" {
 		location = env.server().Name()
 	}
-	return &instance.HardwareCharacteristics{
+
+	hc := instance.HardwareCharacteristics{
 		Arch:             &archStr,
 		CpuCores:         &cores,
 		Mem:              &mem,
 		VirtType:         &container.Type,
 		AvailabilityZone: &location,
 	}
+	// TODO: retrieve root disk source from actual provisioned disk info.
+	if args.Constraints.HasRootDiskSource() {
+		hc.RootDiskSource = args.Constraints.RootDiskSource
+	}
+	return &hc
 }
 
 // AllInstances implements environs.InstanceBroker.

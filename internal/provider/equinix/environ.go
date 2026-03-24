@@ -541,14 +541,21 @@ func (e *environ) StartInstance(ctx context.ProviderCallContext, args environs.S
 	inst := newInstance(d, e)
 
 	arch := getArchitectureFromPlan(d.Plan.Name)
+
+	hc := instance.HardwareCharacteristics{
+		Arch:     &arch,
+		Mem:      &spec.InstanceType.Mem,
+		CpuCores: &spec.InstanceType.CpuCores,
+	}
+
+	// TODO: retrieve root disk source from actual provisioned disk info.
+	if args.Constraints.HasRootDiskSource() {
+		hc.RootDiskSource = args.Constraints.RootDiskSource
+	}
+
 	r := &environs.StartInstanceResult{
 		Instance: inst,
-		Hardware: &instance.HardwareCharacteristics{
-			Arch: &arch,
-			Mem:  &spec.InstanceType.Mem,
-			// RootDisk: &instanceSpec.InstanceType.RootDisk,
-			CpuCores: &spec.InstanceType.CpuCores,
-		},
+		Hardware: &hc,
 	}
 
 	return r, nil

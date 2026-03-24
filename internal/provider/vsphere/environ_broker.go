@@ -276,6 +276,7 @@ func (env *sessionEnviron) newRawInstance(
 
 	}
 
+	// TODO: retrieve root disk source from actual provisioned disk info.
 	hw := &instance.HardwareCharacteristics{
 		Arch:           &arch,
 		Mem:            cons.Mem,

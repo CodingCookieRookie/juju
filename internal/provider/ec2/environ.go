@@ -781,6 +781,10 @@ func (e *environ) StartInstance(
 		// Tags currently not supported by EC2
 		AvailabilityZone: &instAZ,
 	}
+	// TODO: retrieve root disk source from actual provisioned disk info.
+	if args.Constraints.HasRootDiskSource() {
+		hc.RootDiskSource = args.Constraints.RootDiskSource
+	}
 
 	if err := e.maybeAttachInstanceProfile(ctx, callback, inst, args.Constraints); err != nil {
 		return nil, err

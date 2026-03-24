@@ -673,6 +673,14 @@ func (env *azureEnviron) startInstance(
 		RootDisk: &instanceSpec.InstanceType.RootDisk,
 		CpuCores: &instanceSpec.InstanceType.CpuCores,
 	}
+	// TODO: retrieve root disk source from actual provisioned disk info.
+	if args.Constraints.RootDiskSource != nil {
+		hc.RootDiskSource = args.Constraints.RootDiskSource
+	} else if args.RootDisk != nil && args.RootDisk.Attributes != nil {
+		if accountTypeVal, ok := args.RootDisk.Attributes[accountTypeAttr].(string); ok && accountTypeVal != "" {
+			hc.RootDiskSource = &accountTypeVal
+		}
+	}
 	return &environs.StartInstanceResult{
 		Instance: inst,
 		Hardware: hc,
