@@ -741,6 +741,10 @@ func (env *maasEnviron) StartInstance(
 	if err != nil {
 		return nil, environs.ZoneIndependentError(err)
 	}
+	// TODO: retrieve root disk source from actual provisioned disk info.
+	if args.Constraints.RootDiskSource != nil {
+		hc.RootDiskSource = args.Constraints.RootDiskSource
+	}
 
 	selectedTools, err := args.Tools.Match(tools.Filter{
 		Arch: *hc.Arch,

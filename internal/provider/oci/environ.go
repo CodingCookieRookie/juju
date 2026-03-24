@@ -640,10 +640,16 @@ func (e *Environ) startInstance(
 		}
 	}
 
+	// TODO: retrieve root disk source from actual provisioned disk info.
+	hc := instance.hardwareCharacteristics()
+	if args.Constraints.HasRootDiskSource() {
+		hc.RootDiskSource = args.Constraints.RootDiskSource
+	}
+
 	result := &environs.StartInstanceResult{
 		DisplayName: hostname,
 		Instance:    instance,
-		Hardware:    instance.hardwareCharacteristics(),
+		Hardware:    hc,
 	}
 
 	return result, nil
