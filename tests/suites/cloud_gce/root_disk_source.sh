@@ -5,8 +5,8 @@ run_root_disk_source_default() {
 
 	ensure "test-root-disk-source-default" "${file}"
 
-	# Deploy nginx without root-disk-source constraint — should default to pd-standard.
-	juju deploy nginx --channel latest/edge
+	# Deploy juju-qa-test without root-disk-source constraint — should default to pd-standard.
+	juju deploy juju-qa-test --channel latest/edge
 	wait_for_machine_agent_status "0" "started"
 
 	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
@@ -29,8 +29,8 @@ run_root_disk_source_valid() {
 
 	ensure "test-root-disk-source-valid" "${file}"
 
-	# Deploy nginx with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
-	juju deploy nginx --channel latest/edge --constraints "root-disk-source=pd-ssd"
+	# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
+	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=pd-ssd"
 	wait_for_machine_agent_status "0" "started"
 
 	# Verify the instance's boot disk is pd-ssd.
@@ -54,8 +54,8 @@ run_root_disk_source_local() {
 
 	ensure "test-root-disk-source-local" "${file}"
 
-	# Deploy nginx with local-ssd — deploy succeeds but machine provisioning should fail.
-	juju deploy nginx --channel latest/edge --constraints "root-disk-source=local-ssd"
+	# Deploy juju-qa-test with local-ssd — deploy succeeds but machine provisioning should fail.
+	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-ssd"
 
 	echo "Waiting for status failure message indicating local-ssd is not valid..."
 	if ( wait_for "local SSD disk storage not valid" '.machines["0"]["machine-status"]["message"]' ); then
@@ -78,8 +78,8 @@ run_root_disk_source_invalid() {
 
 	ensure "test-root-disk-source-invalid" "${file}"
 
-	# Deploy nginx with an unknown disk type — deploy succeeds but machine provisioning should fail with "not valid".
-	juju deploy nginx --channel latest/edge --constraints "root-disk-source=invalid-disk"
+	# Deploy juju-qa-test with an unknown disk type — deploy succeeds but machine provisioning should fail with "not valid".
+	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=invalid-disk"
 
 	echo "Waiting for status failure message indicating invalid disk type is not valid..."
 	if ( wait_for 'invalid-disk' '.machines["0"]["machine-status"]["message"]' ); then

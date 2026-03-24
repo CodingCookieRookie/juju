@@ -672,6 +672,7 @@ func (env *azureEnviron) startInstance(
 		Mem:      &instanceSpec.InstanceType.Mem,
 		RootDisk: &instanceSpec.InstanceType.RootDisk,
 		CpuCores: &instanceSpec.InstanceType.CpuCores,
+		RootDiskSource: &instanceSpec.InstanceType.RootDisk,
 	}
 	return &environs.StartInstanceResult{
 		Instance: inst,

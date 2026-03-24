@@ -4,6 +4,7 @@
 package gce_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -768,8 +769,7 @@ func (s *environBrokerSuite) TestGetHardwareCharacteristics(c *gc.C) {
 
 	env := s.SetupEnv(c, s.MockService)
 
-	cons := constraints.MustParse("root-disk-source=pd-ssd")
-	hwc := gce.GetHardwareCharacteristics(env, s.spec, s.NewEnvironInstance(env, "inst-0"), cons)
+	hwc := gce.GetHardwareCharacteristics(context.Background(), env, s.spec, s.NewEnvironInstance(env, "inst-0"))
 
 	c.Assert(hwc, gc.NotNil)
 	c.Check(*hwc.Arch, gc.Equals, "amd64")

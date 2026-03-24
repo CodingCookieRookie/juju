@@ -4,9 +4,10 @@
 package gce
 
 import (
+	stdcontext "context"
+
 	"cloud.google.com/go/compute/apiv1/computepb"
 
-	"github.com/juju/juju/core/constraints"
 	"github.com/juju/juju/core/instance"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/context"
@@ -63,8 +64,8 @@ func BuildInstanceSpec(env *environ, ctx context.ProviderCallContext, args envir
 	return env.buildInstanceSpec(ctx, args)
 }
 
-func GetHardwareCharacteristics(env *environ, spec *instances.InstanceSpec, inst *environInstance, cons constraints.Value) *instance.HardwareCharacteristics {
-	return env.getHardwareCharacteristics(spec, inst, cons)
+func GetHardwareCharacteristics(ctx stdcontext.Context, env *environ, spec *instances.InstanceSpec, inst *environInstance) *instance.HardwareCharacteristics {
+	return env.getHardwareCharacteristics(ctx, spec, inst)
 }
 
 func HasAccelerator(env *environ, ctx context.ProviderCallContext, zone string, instanceType string) (bool, error) {

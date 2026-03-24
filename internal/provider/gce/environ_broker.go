@@ -4,6 +4,7 @@
 package gce
 
 import (
+	stdcontext "context"
 	"fmt"
 	"maps"
 	"path"
@@ -44,9 +45,13 @@ func (env *environ) StartInstance(ctx context.ProviderCallContext, args environs
 		return nil, errors.Trace(err)
 	}
 	envInst := newInstance(inst, env)
+	disks := inst.GetDisks()
+	for _, disk := range disks {
+		disk.GetType()
+	}
 
 	// Build the result.
-	hwc := env.getHardwareCharacteristics(spec, envInst, args.Constraints)
+	hwc := env.getHardwareCharacteristics(ctx, spec, envInst)
 	logger.Infof("started instance %q in zone %q", inst.GetName(), *hwc.AvailabilityZone)
 	result := environs.StartInstanceResult{
 		Instance: envInst,
@@ -405,12 +410,26 @@ func (env *environ) hasAccelerator(ctx context.ProviderCallContext, zone string,
 
 // getHardwareCharacteristics compiles hardware-related details about
 // the given instance and relative to the provided spec and returns it.
-func (env *environ) getHardwareCharacteristics(spec *instances.InstanceSpec, inst *environInstance, cons constraints.Value) *instance.HardwareCharacteristics {
+func (env *environ) getHardwareCharacteristics(ctx stdcontext.Context, spec *instances.InstanceSpec, inst *environInstance) *instance.HardwareCharacteristics {
 	rootDiskMB := uint64(0)
+	var rootDiskSource string
+	zone := path.Base(inst.base.GetZone())
+
 	if len(inst.base.Disks) > 0 {
 		rootDiskMB = uint64(inst.base.Disks[0].GetDiskSizeGb() * 1024)
+		bootDisk := inst.base.Disks[0]
+		// Source is like "projects/proj/zones/zone/disks/disk-name".
+		diskName := path.Base(bootDisk.GetSource())
+		if diskName != "" {
+			disk, err := env.gce.Disk(ctx, zone, diskName)
+			if err == nil && disk.GetType() != "" {
+				// Type is a full URL like ".../diskTypes/pd-ssd"
+				diskType := path.Base(disk.GetType())
+				rootDiskSource = diskType
+			}
+		}
 	}
-	zone := path.Base(inst.base.GetZone())
+
 	hwc := instance.HardwareCharacteristics{
 		Arch:             &spec.Image.Arch,
 		Mem:              &spec.InstanceType.Mem,
@@ -418,11 +437,10 @@ func (env *environ) getHardwareCharacteristics(spec *instances.InstanceSpec, ins
 		CpuPower:         spec.InstanceType.CpuPower,
 		RootDisk:         &rootDiskMB,
 		AvailabilityZone: &zone,
+		RootDiskSource:   &rootDiskSource,
 		// Tags: not supported in GCE.
 	}
-	if cons.HasRootDiskSource() {
-		hwc.RootDiskSource = cons.RootDiskSource
-	}
+
 	return &hwc
 }
 
