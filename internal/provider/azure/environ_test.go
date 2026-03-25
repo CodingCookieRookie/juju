@@ -792,12 +792,17 @@ func (s *environSuite) assertStartInstance(
 		mem = uint64(3584)
 	}
 	cpuCores := uint64(1)
-	c.Assert(result.Hardware, jc.DeepEquals, &instance.HardwareCharacteristics{
+	expectedHardware := &instance.HardwareCharacteristics{
 		Arch:     &arch,
 		Mem:      &mem,
 		RootDisk: &expectedRootDisk,
 		CpuCores: &cpuCores,
-	})
+	}
+	if storageAccountType != nil {
+		rootDiskSource := string(*storageAccountType)
+		expectedHardware.RootDiskSource = &rootDiskSource
+	}
+	c.Assert(result.Hardware, jc.DeepEquals, expectedHardware)
 	startParams := assertStartInstanceRequestsParams{
 		imageReference:         &jammyImageReferenceGen2,
 		diskSizeGB:             expectedDiskSize,

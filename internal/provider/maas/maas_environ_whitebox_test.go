@@ -371,11 +371,15 @@ func (suite *maasEnvironSuite) TestStartInstanceError(c *gc.C) {
 func (suite *maasEnvironSuite) TestStartInstance(c *gc.C) {
 	env, _ := suite.injectControllerWithSpacesAndCheck(c, nil, gomaasapi.AllocateMachineArgs{})
 
-	params := environs.StartInstanceParams{ControllerUUID: suite.controllerUUID}
+	params := environs.StartInstanceParams{
+		ControllerUUID: suite.controllerUUID,
+		Constraints:    constraints.MustParse("root-disk-source=maas-pool"),
+	}
 	result, err := jujutesting.StartInstanceWithParams(env, suite.callCtx, "1", params)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(result.Instance.Id(), gc.Equals, instance.Id("Bruce Sterling"))
 	c.Assert(result.DisplayName, gc.Equals, "example.com.")
+	c.Assert(*result.Hardware.RootDiskSource, gc.Equals, "maas-pool")
 }
 
 func (suite *maasEnvironSuite) TestStartInstanceReturnsHostnameAsDisplayName(c *gc.C) {

@@ -647,11 +647,11 @@ func (s *environProviderSuite) TestStartInstance(c *gc.C) {
 	base := corebase.MakeDefaultBase("ubuntu", "20.04")
 	iConfig, err := instancecfg.NewBootstrapInstanceConfig(testing.FakeControllerConfig(), cons, cons, base, "", nil)
 	c.Assert(err, jc.ErrorIsNil)
-	_, err = env.StartInstance(environContext.NewCloudCallContext(context.TODO()), environs.StartInstanceParams{
+	result, err := env.StartInstance(environContext.NewCloudCallContext(context.TODO()), environs.StartInstanceParams{
 		ControllerUUID:   env.Config().UUID(),
 		AvailabilityZone: "yes",
 		InstanceConfig:   iConfig,
-		Constraints:      constraints.MustParse("instance-type=g2.large.x86"),
+		Constraints:      constraints.MustParse("instance-type=g2.large.x86 root-disk-source=fast-pool"),
 		Tools: tools.List{
 			{
 				Version: version.Binary{
@@ -661,6 +661,7 @@ func (s *environProviderSuite) TestStartInstance(c *gc.C) {
 		},
 	})
 	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(*result.Hardware.RootDiskSource, gc.Equals, "fast-pool")
 }
 
 func makeTestModelConfig(c *gc.C, extra ...testing.Attrs) *config.Config {

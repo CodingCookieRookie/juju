@@ -58,6 +58,7 @@ import (
 	ec2test "github.com/juju/juju/internal/provider/ec2/internal/testing"
 	"github.com/juju/juju/juju/keys"
 	"github.com/juju/juju/juju/testing"
+	jujustorage "github.com/juju/juju/storage"
 	"github.com/juju/juju/storage"
 	coretesting "github.com/juju/juju/testing"
 	coretools "github.com/juju/juju/tools"
@@ -730,6 +731,20 @@ func (t *localServerSuite) TestStartInstanceHardwareCharacteristics(c *gc.C) {
 	c.Check(*hc.Arch, gc.Equals, "amd64")
 	c.Check(*hc.Mem, gc.Equals, uint64(8192))
 	c.Check(*hc.CpuCores, gc.Equals, uint64(2))
+}
+
+func (t *localServerSuite) TestStartInstanceHardwareCharacteristicsRootDiskSource(c *gc.C) {
+	env := t.prepareAndBootstrap(c)
+	params := environs.StartInstanceParams{ControllerUUID: t.ControllerUUID, StatusCallback: fakeCallback}
+	params.RootDisk = &jujustorage.VolumeParams{
+		Attributes: map[string]interface{}{
+			"volume-type": "gp3",
+		},
+	}
+	result, err := testing.StartInstanceWithParams(env, t.callCtx, "1", params)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(result.Hardware.RootDiskSource, gc.NotNil)
+	c.Check(*result.Hardware.RootDiskSource, gc.Equals, "gp3")
 }
 
 func (t *localServerSuite) TestStartInstanceAvailZone(c *gc.C) {

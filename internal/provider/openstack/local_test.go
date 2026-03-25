@@ -2798,6 +2798,7 @@ func (s *localServerSuite) TestStartInstanceWithImageIDConstraint(c *gc.C) {
 	})
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(res, gc.NotNil)
+	c.Assert(*res.Hardware.RootDiskSource, gc.Equals, "volume")
 
 	runOpts := res.Instance.(novaInstaceStartedWithOpts).NovaInstanceStartedWithOpts()
 	c.Assert(runOpts, gc.NotNil)
@@ -2856,6 +2857,7 @@ func (s *localServerSuite) TestStartInstanceVolumeRootBlockDeviceSized(c *gc.C) 
 	c.Assert(res, gc.NotNil)
 
 	c.Assert(res.Hardware.RootDisk, gc.NotNil)
+	c.Assert(*res.Hardware.RootDiskSource, gc.Equals, "volume")
 	c.Assert(*res.Hardware.RootDisk, gc.Equals, uint64(diskSizeGiB*1024))
 
 	runOpts := res.Instance.(novaInstaceStartedWithOpts).NovaInstanceStartedWithOpts()
@@ -2891,6 +2893,7 @@ func (s *localServerSuite) TestStartInstanceLocalRootBlockDeviceConstraint(c *gc
 	c.Assert(res, gc.NotNil)
 
 	c.Assert(res.Hardware.RootDisk, gc.NotNil)
+	c.Assert(*res.Hardware.RootDiskSource, gc.Equals, "local")
 	// Check local disk requirements are met.
 	c.Assert(*res.Hardware.RootDisk, jc.GreaterThan, uint64(1024-1))
 

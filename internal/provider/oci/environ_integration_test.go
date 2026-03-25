@@ -23,6 +23,7 @@ import (
 	"github.com/juju/juju/environs/tags"
 	envtesting "github.com/juju/juju/environs/testing"
 	"github.com/juju/juju/internal/provider/oci"
+	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/testing"
 )
 
@@ -940,6 +941,20 @@ func (s *environSuite) TestBootstrapFlexibleShape(c *gc.C) {
 			BootstrapConstraints:    constraints.MustParse("cpu-cores=32"),
 		})
 	c.Assert(err, gc.IsNil)
+}
+
+func (s *environSuite) TestStartInstanceRootDiskSource(c *gc.C) {
+	ctrl := s.patchEnv(c)
+	defer ctrl.Finish()
+
+	s.setupStartInstanceExpectations(false, false, gomock.Any())
+
+	result, err := jujutesting.StartInstanceWithParams(s.env, envcontext.NewEmptyCloudCallContext(), "0", environs.StartInstanceParams{
+		ControllerUUID: testing.ControllerTag.Id(),
+		Constraints:    constraints.MustParse("root-disk-source=paravirtualized"),
+	})
+	c.Assert(err, gc.IsNil)
+	c.Assert(*result.Hardware.RootDiskSource, gc.Equals, "paravirtualized")
 }
 
 type noPublicIPMatcher struct{}

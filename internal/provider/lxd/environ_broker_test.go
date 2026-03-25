@@ -584,6 +584,42 @@ func (s *environBrokerSuite) TestStartInstanceWithConstraints(c *gc.C) {
 	c.Assert(*res.Hardware.AvailabilityZone, jc.DeepEquals, "node01")
 }
 
+func (s *environBrokerSuite) TestStartInstanceRootDiskSourceUsesProvisionedPool(c *gc.C) {
+	ctrl := gomock.NewController(c)
+	defer ctrl.Finish()
+	svr := lxd.NewMockServer(ctrl)
+
+	exp := svr.EXPECT()
+	gomock.InOrder(
+		exp.HostArch().Return(arch.AMD64),
+		exp.FindImage(gomock.Any(), corebase.MakeDefaultBase("ubuntu", "24.04"), arch.AMD64, api.InstanceTypeContainer, gomock.Any(), true, gomock.Any()).Return(containerlxd.SourcedImage{}, nil),
+		exp.ServerVersion().Return("3.10.0"),
+		exp.GetNICsFromProfile("default").Return(s.defaultProfile.Devices, nil),
+		exp.CreateContainerFromSpec(gomock.Any()).Return(&containerlxd.Container{
+			Instance: api.Instance{
+				Location: "node01",
+				ExpandedDevices: map[string]map[string]string{
+					"root": {
+						"type":   "disk",
+						"path":   "/",
+						"pool":   "actual-pool",
+						"source": "ignored-source",
+					},
+				},
+			},
+		}, nil),
+		exp.HostArch().Return(arch.AMD64),
+	)
+
+	args := s.GetStartInstanceArgs(c)
+	args.Constraints = constraints.MustParse("root-disk-source=requested-pool")
+
+	env := s.NewEnviron(c, svr, nil, environscloudspec.CloudSpec{})
+	res, err := env.StartInstance(s.callCtx, args)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(*res.Hardware.RootDiskSource, gc.Equals, "actual-pool")
+}
+
 func (s *environBrokerSuite) TestStartInstanceWithConstraintsAndVirtType(c *gc.C) {
 	ctrl := gomock.NewController(c)
 	defer ctrl.Finish()
