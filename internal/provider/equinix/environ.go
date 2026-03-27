@@ -548,7 +548,6 @@ func (e *environ) StartInstance(ctx context.ProviderCallContext, args environs.S
 		CpuCores: &spec.InstanceType.CpuCores,
 	}
 
-	// TODO: retrieve root disk source from actual provisioned disk info.
 	if args.Constraints.HasRootDiskSource() {
 		hc.RootDiskSource = args.Constraints.RootDiskSource
 	}
