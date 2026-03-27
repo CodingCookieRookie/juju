@@ -698,6 +698,8 @@ func (s *environSuite) assertStartInstance(
 		s.vmTags[tags.JujuUnitsDeployed] = "mysql/0 wordpress/0"
 		args.InstanceConfig.Tags[tags.JujuUnitsDeployed] = "mysql/0 wordpress/0"
 	}
+	testRootDiskSource := "test-storage-pool"
+	args.Constraints.RootDiskSource = &testRootDiskSource
 	diskEncryptionSetName := ""
 	vaultName := ""
 	vaultKeyName := ""
@@ -793,10 +795,11 @@ func (s *environSuite) assertStartInstance(
 	}
 	cpuCores := uint64(1)
 	c.Assert(result.Hardware, jc.DeepEquals, &instance.HardwareCharacteristics{
-		Arch:     &arch,
-		Mem:      &mem,
-		RootDisk: &expectedRootDisk,
-		CpuCores: &cpuCores,
+		Arch:           &arch,
+		Mem:            &mem,
+		RootDisk:       &expectedRootDisk,
+		CpuCores:       &cpuCores,
+		RootDiskSource: &testRootDiskSource,
 	})
 	startParams := assertStartInstanceRequestsParams{
 		imageReference:         &jammyImageReferenceGen2,

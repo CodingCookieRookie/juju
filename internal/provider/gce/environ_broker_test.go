@@ -631,7 +631,7 @@ func (s *environBrokerSuite) TestStartInstanceRootDiskAttributes(c *gc.C) {
 	s.MockService.EXPECT().AddInstance(gomock.Any(), gceComputeArgMatcher{instArg}).Return(instResult, nil)
 
 	s.StartInstArgs.AvailabilityZone = "home-zone"
-	s.StartInstArgs.Constraints = constraints.Value{}
+	s.StartInstArgs.Constraints = constraints.MustParse("root-disk-source=test-storage-pool")
 	s.StartInstArgs.RootDisk = &storage.VolumeParams{
 		Attributes: map[string]interface{}{
 			"disk-type": "pd-ssd",
@@ -640,7 +640,8 @@ func (s *environBrokerSuite) TestStartInstanceRootDiskAttributes(c *gc.C) {
 	result, err := env.StartInstance(s.CallCtx, s.StartInstArgs)
 
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(result.Hardware.RootDiskSource, gc.IsNil)
+	c.Assert(result.Hardware.RootDiskSource, gc.NotNil)
+	c.Assert(*result.Hardware.RootDiskSource, gc.Equals, "test-storage-pool")
 }
 
 func (s *environBrokerSuite) TestStartInstanceRootDiskSourceLocalSSD(c *gc.C) {
