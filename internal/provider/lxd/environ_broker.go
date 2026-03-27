@@ -432,7 +432,7 @@ func (env *environ) getHardwareCharacteristics(
 		VirtType:         &container.Type,
 		AvailabilityZone: &location,
 	}
-	// TODO: retrieve root disk source from actual provisioned disk info.
+
 	if args.Constraints.HasRootDiskSource() {
 		hc.RootDiskSource = args.Constraints.RootDiskSource
 	}

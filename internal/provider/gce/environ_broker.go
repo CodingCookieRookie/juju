@@ -24,6 +24,7 @@ import (
 	"github.com/juju/juju/environs/instances"
 	"github.com/juju/juju/internal/provider/common"
 	"github.com/juju/juju/internal/provider/gce/internal/google"
+	"github.com/juju/juju/storage"
 )
 
 // StartInstance implements environs.InstanceBroker.
@@ -222,7 +223,7 @@ func (env *environ) startInstance(
 	}
 	imageURL := imageURLBase + imageID
 
-	disks, err := getDisks(imageURL, os, args.AvailabilityZone, args.Constraints)
+	disks, err := getDisks(imageURL, os, args.AvailabilityZone, args.Constraints, args.RootDisk)
 	if err != nil {
 		return nil, environs.ZoneIndependentError(err)
 	}
@@ -341,7 +342,13 @@ func getMetadata(args environs.StartInstanceParams, os ostype.OSType) (map[strin
 // the new instances and returns it. This will always include a root
 // disk with characteristics determined by the provides args and
 // constraints.
-func getDisks(imageURL string, os ostype.OSType, zone string, cons constraints.Value) ([]*computepb.AttachedDisk, error) {
+func getDisks(
+	imageURL string,
+	os ostype.OSType,
+	zone string,
+	cons constraints.Value,
+	rootDisk *storage.VolumeParams,
+) ([]*computepb.AttachedDisk, error) {
 	size := common.MinRootDiskSizeGiB(os)
 	if cons.RootDisk != nil && *cons.RootDisk > size {
 		size = common.MiBToGiB(*cons.RootDisk)
@@ -369,7 +376,21 @@ func getDisks(imageURL string, os ostype.OSType, zone string, cons constraints.V
 		// Interface (defaults to SCSI)
 		// DeviceName (GCE sets this, persistent disk only)
 	}
-	if cons.HasRootDiskSource() {
+	// if rootDisk != nil {
+	// 	if val, ok := rootDisk.Attributes[diskTypeAttribute].(string); ok && val != "" {
+	// 		dt := google.DiskType(val)
+	// 		switch dt {
+	// 		case google.DiskPersistentSSD, google.DiskPersistentStandard:
+	// 			dtStr := formatDiskType(zone, string(dt))
+	// 			disk.InitializeParams.DiskType = &dtStr
+	// 		case google.DiskLocalSSD:
+	// 			return nil, errors.NotValidf("local SSD disk storage")
+	// 		default:
+	// 			return nil, errors.NotValidf("%q root disk attribute", diskTypeAttribute)
+	// 		}
+	// 	}
+	// }
+	if disk.InitializeParams.DiskType == nil && cons.HasRootDiskSource() {
 		dt := google.DiskType(*cons.RootDiskSource)
 		switch dt {
 		case google.DiskPersistentSSD, google.DiskPersistentStandard:
@@ -378,7 +399,8 @@ func getDisks(imageURL string, os ostype.OSType, zone string, cons constraints.V
 		case google.DiskLocalSSD:
 			return nil, errors.NotValidf("local SSD disk storage")
 		default:
-			return nil, errors.NotValidf("root disk source %q", dt)
+			// If the root disk source is invalid, we ignore it, we may be using a storage pool.
+			return nil, nil
 		}
 	}
 	return []*computepb.AttachedDisk{disk}, nil
@@ -421,7 +443,6 @@ func (env *environ) getHardwareCharacteristics(spec *instances.InstanceSpec, ins
 		// Tags: not supported in GCE.
 	}
 
-	// TODO: retrieve root disk source from actual provisioned disk info.
 	if cons.HasRootDiskSource() {
 		hwc.RootDiskSource = cons.RootDiskSource
 	}

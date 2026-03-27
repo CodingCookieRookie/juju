@@ -216,6 +216,7 @@ func (v *volumeSource) createOneVolume(ctx context.ProviderCallContext, p storag
 		return nil, nil, errors.Annotatef(err, "cannot obtain %q from instance cache", instId)
 	}
 
+	logger.Infof("alvin createOneVolume called")
 	diskType := google.DiskPersistentStandard
 	if val, ok := p.Attributes[diskTypeAttribute].(string); ok {
 		dt := google.DiskType(val)
