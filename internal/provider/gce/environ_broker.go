@@ -371,8 +371,9 @@ func getDisks(imageURL string, os ostype.OSType, zone string, cons constraints.V
 		// DeviceName (GCE sets this, persistent disk only)
 	}
 
-	// If there root disk source exists, and it corresponds to a storage pool,
-	// then we should use the disk type of the storage pool for the root disk.
+	// If root disk is not nil,
+	// it means we have a storage pool as the root-disk-source,
+	// but we would still need to validate the disk type.
 	if rootDisk != nil {
 		if val, ok := rootDisk.Attributes[diskTypeAttribute].(string); ok && val != "" {
 			dt := google.DiskType(val)
@@ -383,22 +384,24 @@ func getDisks(imageURL string, os ostype.OSType, zone string, cons constraints.V
 			case google.DiskLocalSSD:
 				return nil, errors.NotValidf("local SSD disk storage")
 			default:
-				// If storage pool does not exist, we check if
-				// root disk source is a root disk type, and we could directly use
-				// the disk type specified as the root disk source,
-				// otherwise we return an error.
-				if disk.InitializeParams.DiskType == nil && cons.HasRootDiskSource() {
-					dt := google.DiskType(*cons.RootDiskSource)
-					switch dt {
-					case google.DiskPersistentSSD, google.DiskPersistentStandard:
-						dtStr := formatDiskType(zone, string(dt))
-						disk.InitializeParams.DiskType = &dtStr
-					case google.DiskLocalSSD:
-						return nil, errors.NotValidf("local SSD disk storage")
-					default:
-						return nil, errors.NotValidf("root disk source %q", dt)
-					}
-				}
+				return nil, errors.NotValidf("disk type %q for root disk", val)
+			}
+		}
+	} else {
+		// If root disk does not exist, we check if
+		// root disk source exists, we could use the disk type
+		// if it were specified as the root disk source,
+		// otherwise we return an error.
+		if cons.HasRootDiskSource() {
+			dt := google.DiskType(*cons.RootDiskSource)
+			switch dt {
+			case google.DiskPersistentSSD, google.DiskPersistentStandard:
+				dtStr := formatDiskType(zone, string(dt))
+				disk.InitializeParams.DiskType = &dtStr
+			case google.DiskLocalSSD:
+				return nil, errors.NotValidf("local SSD disk storage")
+			default:
+				return nil, errors.NotValidf("root disk source %q", dt)
 			}
 		}
 	}
