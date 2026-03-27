@@ -31,7 +31,7 @@ run_root_disk_source_storage_pool() {
 
 	juju create-storage-pool ssd-gce gce disk-type=pd-ssd
 
-	# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
+	# Deploy juju-qa-test with root-disk-source=ssd-gce constraint - should be provisioned with pd-ssd.
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=ssd-gce"
 	wait_for_machine_agent_status "0" "started"
 
@@ -58,7 +58,9 @@ run_root_disk_source_storage_pool_named_local_ssd() {
 
 	juju create-storage-pool local-ssd gce disk-type=pd-ssd
 
-	# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
+	# Deploy juju-qa-test with root-disk-source=local-ssd constraint - should be provisioned with pd-ssd.
+	# Note that local-ssd here refers to the storage pool named local-ssd which has a higher priority than
+	# the actual local SSD disk type which is invalid for root disk source.
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-ssd"
 	wait_for_machine_agent_status "0" "started"
 
@@ -112,7 +114,7 @@ run_root_disk_source_local() {
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-ssd"
 
 	echo "Waiting for status failure message indicating local-ssd is not valid..."
-	if ( wait_for "local SSD disk storage not valid" '.machines["0"]["machine-status"]["message"]' ); then
+	if (wait_for "local SSD disk storage not valid" '.machines["0"]["machine-status"]["message"]'); then
 		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
 		echo "OK: local-ssd correctly rejected with message: ${machine_msg}"
 		destroy_model "test-root-disk-source-local"
@@ -136,7 +138,7 @@ run_root_disk_source_invalid() {
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=invalid-disk"
 
 	echo "Waiting for status failure message indicating invalid disk type is not valid..."
-	if ( wait_for 'invalid-disk' '.machines["0"]["machine-status"]["message"]' ); then
+	if (wait_for 'invalid-disk' '.machines["0"]["machine-status"]["message"]'); then
 		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
 		echo "OK: unknown disk type correctly rejected with message: ${machine_msg}"
 		destroy_model "test-root-disk-source-invalid"

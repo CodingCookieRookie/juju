@@ -595,7 +595,7 @@ func (s *environBrokerSuite) TestStartInstanceRootDiskSource(c *gc.C) {
 	c.Assert(*result.Hardware.RootDiskSource, gc.Equals, "pd-ssd")
 }
 
-func (s *environBrokerSuite) TestStartInstanceRootDiskAttributes(c *gc.C) {
+func (s *environBrokerSuite) TestStartInstanceRootDiskStoragePool(c *gc.C) {
 	ctrl := s.SetupMocks(c)
 	defer ctrl.Finish()
 
@@ -778,7 +778,7 @@ func (s *environBrokerSuite) TestGetDisks(c *gc.C) {
 		os := ostype.OSTypeForName(test.osname)
 		diskSpecs, err := gce.GetDisks("image-url", os, "home-zone", s.StartInstArgs.Constraints, nil)
 		if test.error != nil {
-			c.Assert(err, gc.Equals, err)
+			c.Assert(err, gc.ErrorMatches, test.error.Error())
 		} else {
 			c.Assert(err, jc.ErrorIsNil)
 			c.Assert(diskSpecs, gc.HasLen, 1)
@@ -790,7 +790,7 @@ func (s *environBrokerSuite) TestGetDisks(c *gc.C) {
 	}
 }
 
-func (s *environBrokerSuite) TestGetDisksRootDiskSource(c *gc.C) {
+func (s *environBrokerSuite) TestGetDisksRootDiskSourceValid(c *gc.C) {
 	cons := constraints.MustParse("root-disk-source=pd-ssd")
 	diskSpecs, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
 	c.Assert(err, jc.ErrorIsNil)
@@ -799,7 +799,19 @@ func (s *environBrokerSuite) TestGetDisksRootDiskSource(c *gc.C) {
 	c.Check(diskSpecs[0].InitializeParams.GetDiskType(), gc.Equals, "zones/home-zone/diskTypes/pd-ssd")
 }
 
-func (s *environBrokerSuite) TestGetDisksRootDiskAttributes(c *gc.C) {
+func (s *environBrokerSuite) TestGetDisksRootDiskSourceLocalSSD(c *gc.C) {
+	cons := constraints.MustParse("root-disk-source=local-ssd")
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
+	c.Assert(err, gc.ErrorMatches, `local SSD disk storage not valid`)
+}
+
+func (s *environBrokerSuite) TestGetDisksRootDiskSourceInvalid(c *gc.C) {
+	cons := constraints.MustParse("root-disk-source=unknown-type")
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
+	c.Assert(err, gc.ErrorMatches, `root disk source "unknown-type" not valid`)
+}
+
+func (s *environBrokerSuite) TestGetDisksRootDiskAttributesValid(c *gc.C) {
 	rootDisk := &storage.VolumeParams{
 		Attributes: map[string]interface{}{
 			"disk-type": "pd-ssd",
@@ -826,26 +838,26 @@ func (s *environBrokerSuite) TestGetDisksRootDiskAttributesOverrideConstraint(c 
 	c.Check(diskSpecs[0].InitializeParams.GetDiskType(), gc.Equals, "zones/home-zone/diskTypes/pd-standard")
 }
 
-func (s *environBrokerSuite) TestGetDisksRootDiskSourceLocalSSD(c *gc.C) {
-	cons := constraints.MustParse("root-disk-source=local-ssd")
-	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
+func (s *environBrokerSuite) TestGetDisksRootDiskAttributesLocalSSD(c *gc.C) {
+	rootDisk := &storage.VolumeParams{
+		Attributes: map[string]interface{}{
+			"disk-type": "local-ssd",
+		},
+	}
+	cons := constraints.MustParse("root-disk-source=test-storage-pool")
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, rootDisk)
 	c.Assert(err, gc.ErrorMatches, `local SSD disk storage not valid`)
 }
 
-func (s *environBrokerSuite) TestGetDisksRootDiskSourceInvalid(c *gc.C) {
-	cons := constraints.MustParse("root-disk-source=unknown-type")
-	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
-	c.Assert(err, gc.ErrorMatches, `root disk source "unknown-type" not valid`)
-}
-
-func (s *environBrokerSuite) TestGetDisksRootDiskAttributesInvalid(c *gc.C) {
+func (s *environBrokerSuite) TestGetDisksRootDiskAttributesInvalidDiskType(c *gc.C) {
 	rootDisk := &storage.VolumeParams{
 		Attributes: map[string]interface{}{
 			"disk-type": "unknown-type",
 		},
 	}
-	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", constraints.Value{}, rootDisk)
-	c.Assert(err, gc.ErrorMatches, `"disk-type" root disk attribute not valid`)
+	cons := constraints.MustParse("root-disk-source=test-storage-pool")
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, rootDisk)
+	c.Assert(err, gc.ErrorMatches, `disk type "unknown-type" for root disk not valid`)
 }
 
 func (s *environBrokerSuite) TestGetHardwareCharacteristics(c *gc.C) {
