@@ -22,12 +22,66 @@ run_root_disk_source_default() {
 	destroy_model "test-root-disk-source-default"
 }
 
-run_root_disk_source_valid() {
+run_root_disk_source_storage_pool() {
 	echo
 
-	file="${TEST_DIR}/test-root-disk-source-valid.log"
+	file="${TEST_DIR}/test-root-disk-source-storage-pool.log"
 
-	ensure "test-root-disk-source-valid" "${file}"
+	ensure "test-root-disk-source-storage-pool" "${file}"
+
+	juju create-storage-pool ssd-gce gce disk-type=pd-ssd
+
+	# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
+	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=ssd-gce"
+	wait_for_machine_agent_status "0" "started"
+
+	# Verify the instance's boot disk is pd-ssd.
+	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
+	az="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["hardware"]' | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
+
+	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
+	if [ "${boot_disk_type}" != "pd-ssd" ]; then
+		echo "FAIL: expected boot disk type pd-ssd, got ${boot_disk_type}"
+		return 1
+	fi
+	echo "OK: boot disk type is pd-ssd"
+
+	destroy_model "test-root-disk-source-storage-pool"
+}
+
+run_root_disk_source_storage_pool_named_local_ssd() {
+	echo
+
+	file="${TEST_DIR}/test-root-disk-source-storage-pool-named-local-ssd.log"
+
+	ensure "test-root-disk-source-storage-pool-named-local-ssd" "${file}"
+
+	juju create-storage-pool local-ssd gce disk-type=pd-ssd
+
+	# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
+	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-ssd"
+	wait_for_machine_agent_status "0" "started"
+
+	# Verify the instance's boot disk is pd-ssd.
+	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
+	az="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["hardware"]' | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
+
+	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
+	if [ "${boot_disk_type}" != "pd-ssd" ]; then
+		echo "FAIL: expected boot disk type pd-ssd, got ${boot_disk_type}"
+		return 1
+	fi
+	echo "OK: boot disk type is pd-ssd"
+
+	destroy_model "test-root-disk-source-storage-pool-named-local-ssd"
+}
+
+run_root_disk_source_disk_type() {
+	echo
+
+	file="${TEST_DIR}/test-root-disk-source-disk-type.log"
+
+	ensure "test-root-disk-source-disk-type" "${file}"
 
 	# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd.
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=pd-ssd"
@@ -44,7 +98,7 @@ run_root_disk_source_valid() {
 	fi
 	echo "OK: boot disk type is pd-ssd"
 
-	destroy_model "test-root-disk-source-valid"
+	destroy_model "test-root-disk-source-disk-type"
 }
 
 run_root_disk_source_local() {
@@ -107,7 +161,9 @@ test_root_disk_source() {
 		cd .. || exit
 
 		run "run_root_disk_source_default"
-		run "run_root_disk_source_valid"
+		run "run_root_disk_source_storage_pool"
+		run "run_root_disk_source_storage_pool_named_local_ssd"
+		run "run_root_disk_source_disk_type"
 		run "run_root_disk_source_local"
 		run "run_root_disk_source_invalid"
 	)

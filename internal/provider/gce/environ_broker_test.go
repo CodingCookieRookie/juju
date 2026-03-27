@@ -595,6 +595,54 @@ func (s *environBrokerSuite) TestStartInstanceRootDiskSource(c *gc.C) {
 	c.Assert(*result.Hardware.RootDiskSource, gc.Equals, "pd-ssd")
 }
 
+func (s *environBrokerSuite) TestStartInstanceRootDiskAttributes(c *gc.C) {
+	ctrl := s.SetupMocks(c)
+	defer ctrl.Finish()
+
+	env := s.SetupEnv(c, s.MockService)
+	err := gce.FinishInstanceConfig(env, s.StartInstArgs, s.spec)
+	c.Assert(err, jc.ErrorIsNil)
+
+	s.expectImageMetadata()
+	s.MockService.EXPECT().NetworkSubnetworks(gomock.Any(), "us-east1", "/path/to/vpc").
+		Return([]*computepb.Subnetwork{{
+			SelfLink: ptr("/path/to/subnet1"),
+		}, {
+			SelfLink: ptr("/path/to/subnet2"),
+		}}, nil)
+	s.MockService.EXPECT().DefaultServiceAccount(gomock.Any()).Return("fred@google.com", nil)
+
+	s.MockService.EXPECT().
+		MachineType(gomock.Any(), "home-zone", s.spec.InstanceType.Name).
+		Return(&computepb.MachineType{
+			Name:         ptr(s.spec.InstanceType.Name),
+			Accelerators: nil,
+		}, nil)
+
+	instArg := s.startInstanceArg(c, s.Prefix(env), false)
+	formattedDiskType := "zones/home-zone/diskTypes/pd-ssd"
+	instArg.Disks[0].InitializeParams.DiskType = &formattedDiskType
+	instResult := s.startInstanceArg(c, s.Prefix(env), false)
+	instResult.Zone = ptr("path/to/home-zone")
+	instResult.Disks = []*computepb.AttachedDisk{{
+		DiskSizeGb: ptr(int64(s.spec.InstanceType.RootDisk / 1024)),
+	}}
+
+	s.MockService.EXPECT().AddInstance(gomock.Any(), gceComputeArgMatcher{instArg}).Return(instResult, nil)
+
+	s.StartInstArgs.AvailabilityZone = "home-zone"
+	s.StartInstArgs.Constraints = constraints.Value{}
+	s.StartInstArgs.RootDisk = &storage.VolumeParams{
+		Attributes: map[string]interface{}{
+			"disk-type": "pd-ssd",
+		},
+	}
+	result, err := env.StartInstance(s.CallCtx, s.StartInstArgs)
+
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(result.Hardware.RootDiskSource, gc.IsNil)
+}
+
 func (s *environBrokerSuite) TestStartInstanceRootDiskSourceLocalSSD(c *gc.C) {
 	ctrl := s.SetupMocks(c)
 	defer ctrl.Finish()
@@ -727,7 +775,7 @@ var getDisksTests = []struct {
 func (s *environBrokerSuite) TestGetDisks(c *gc.C) {
 	for _, test := range getDisksTests {
 		os := ostype.OSTypeForName(test.osname)
-		diskSpecs, err := gce.GetDisks("image-url", os, "home-zone", s.StartInstArgs.Constraints)
+		diskSpecs, err := gce.GetDisks("image-url", os, "home-zone", s.StartInstArgs.Constraints, nil)
 		if test.error != nil {
 			c.Assert(err, gc.Equals, err)
 		} else {
@@ -743,23 +791,60 @@ func (s *environBrokerSuite) TestGetDisks(c *gc.C) {
 
 func (s *environBrokerSuite) TestGetDisksRootDiskSource(c *gc.C) {
 	cons := constraints.MustParse("root-disk-source=pd-ssd")
-	diskSpecs, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons)
+	diskSpecs, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(diskSpecs, gc.HasLen, 1)
 	c.Assert(diskSpecs[0].InitializeParams, gc.NotNil)
 	c.Check(diskSpecs[0].InitializeParams.GetDiskType(), gc.Equals, "zones/home-zone/diskTypes/pd-ssd")
 }
 
+func (s *environBrokerSuite) TestGetDisksRootDiskAttributes(c *gc.C) {
+	rootDisk := &storage.VolumeParams{
+		Attributes: map[string]interface{}{
+			"disk-type": "pd-ssd",
+		},
+	}
+	diskSpecs, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", constraints.Value{}, rootDisk)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(diskSpecs, gc.HasLen, 1)
+	c.Assert(diskSpecs[0].InitializeParams, gc.NotNil)
+	c.Check(diskSpecs[0].InitializeParams.GetDiskType(), gc.Equals, "zones/home-zone/diskTypes/pd-ssd")
+}
+
+func (s *environBrokerSuite) TestGetDisksRootDiskAttributesOverrideConstraint(c *gc.C) {
+	rootDisk := &storage.VolumeParams{
+		Attributes: map[string]interface{}{
+			"disk-type": "pd-standard",
+		},
+	}
+	cons := constraints.MustParse("root-disk-source=pd-ssd")
+	diskSpecs, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, rootDisk)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(diskSpecs, gc.HasLen, 1)
+	c.Assert(diskSpecs[0].InitializeParams, gc.NotNil)
+	c.Check(diskSpecs[0].InitializeParams.GetDiskType(), gc.Equals, "zones/home-zone/diskTypes/pd-standard")
+}
+
 func (s *environBrokerSuite) TestGetDisksRootDiskSourceLocalSSD(c *gc.C) {
 	cons := constraints.MustParse("root-disk-source=local-ssd")
-	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons)
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
 	c.Assert(err, gc.ErrorMatches, `local SSD disk storage not valid`)
 }
 
 func (s *environBrokerSuite) TestGetDisksRootDiskSourceInvalid(c *gc.C) {
 	cons := constraints.MustParse("root-disk-source=unknown-type")
-	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons)
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", cons, nil)
 	c.Assert(err, gc.ErrorMatches, `root disk source "unknown-type" not valid`)
+}
+
+func (s *environBrokerSuite) TestGetDisksRootDiskAttributesInvalid(c *gc.C) {
+	rootDisk := &storage.VolumeParams{
+		Attributes: map[string]interface{}{
+			"disk-type": "unknown-type",
+		},
+	}
+	_, err := gce.GetDisks("image-url", ostype.Ubuntu, "home-zone", constraints.Value{}, rootDisk)
+	c.Assert(err, gc.ErrorMatches, `"disk-type" root disk attribute not valid`)
 }
 
 func (s *environBrokerSuite) TestGetHardwareCharacteristics(c *gc.C) {
