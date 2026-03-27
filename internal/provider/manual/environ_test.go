@@ -12,6 +12,7 @@ import (
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
+	"github.com/juju/juju/cloudconfig/instancecfg"
 	"github.com/juju/juju/core/arch"
 	"github.com/juju/juju/core/base"
 	"github.com/juju/juju/core/constraints"
@@ -19,6 +20,7 @@ import (
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/context"
 	"github.com/juju/juju/environs/manual/sshprovisioner"
+	envtesting "github.com/juju/juju/environs/testing"
 	coretesting "github.com/juju/juju/testing"
 )
 
@@ -201,6 +203,38 @@ func (s *environSuite) TestPrecheck(c *gc.C) {
 		Constraints: constraint,
 	})
 	c.Assert(err, jc.ErrorIsNil)
+}
+
+func (s *environSuite) TestBootstrapSetsRootDiskSource(c *gc.C) {
+	// Set provisioned value to false.
+	s.PatchValue(&sshprovisioner.CheckProvisioned, func(string) (bool, error) {
+		return false, nil
+	})
+
+	// Set Arch and Base with nil error.
+	s.PatchValue(&sshprovisioner.DetectBaseAndHardwareCharacteristics,
+		func(string) (instance.HardwareCharacteristics, base.Base, error) {
+			amd64 := "amd64"
+			return instance.HardwareCharacteristics{
+				Arch: &amd64,
+			}, base.MustParseBaseFromString("ubuntu@22.04"), nil
+		},
+	)
+
+	result, err := s.env.Bootstrap(
+		envtesting.BootstrapContext(stdcontext.TODO(), c),
+		s.callCtx,
+		environs.BootstrapParams{
+			ModelConstraints: constraints.MustParse("root-disk-source=test-storage-pool"),
+		},
+	)
+	c.Assert(err, jc.ErrorIsNil)
+
+	icfg := &instancecfg.InstanceConfig{Bootstrap: &instancecfg.BootstrapConfig{}}
+	err = result.CloudBootstrapFinalizer(envtesting.BootstrapContext(stdcontext.TODO(), c), icfg, environs.BootstrapDialOpts{})
+	c.Assert(icfg.Bootstrap.BootstrapMachineHardwareCharacteristics.RootDiskSource, gc.NotNil)
+	c.Check(*icfg.Bootstrap.BootstrapMachineHardwareCharacteristics.RootDiskSource, gc.Equals, "test-storage-pool")
+	c.Assert(err, gc.NotNil)
 }
 
 type controllerInstancesSuite struct {
