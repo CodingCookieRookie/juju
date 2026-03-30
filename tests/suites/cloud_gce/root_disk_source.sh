@@ -89,7 +89,7 @@ run_root_disk_source_storage_pool_local() {
 	ensure "test-root-disk-source-storage-pool-local" "${file}"
 
 	juju create-storage-pool local-gce gce disk-type=local-ssd
-	
+
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-gce"
 
 	echo "Waiting for status failure message indicating local-ssd is not valid..."
@@ -115,7 +115,7 @@ run_root_disk_source_storage_pool_invalid() {
 	ensure "test-root-disk-source-storage-pool-invalid" "${file}"
 
 	juju create-storage-pool invalid-disk gce disk-type=invalid-disk
-	
+
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=invalid-disk"
 
 	echo "Waiting for status failure message indicating disk type invalid-disk for root disk is not valid..."
@@ -139,7 +139,7 @@ run_root_disk_source_disk_type() {
 	file="${TEST_DIR}/test-root-disk-source-disk-type.log"
 
 	ensure "test-root-disk-source-disk-type" "${file}"
-	
+
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=pd-ssd"
 	wait_for_machine_agent_status "0" "started"
 
@@ -190,7 +190,6 @@ run_root_disk_source_invalid() {
 
 	ensure "test-root-disk-source-invalid" "${file}"
 
-	
 	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=invalid-disk"
 
 	echo "Waiting for status failure message indicating root disk source is not valid..."

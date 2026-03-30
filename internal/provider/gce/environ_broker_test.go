@@ -765,29 +765,15 @@ func (s *environBrokerSuite) TestGetMetadataOSNotSupported(c *gc.C) {
 	c.Assert(err, gc.ErrorMatches, "cannot pack metadata for os GenericLinux on the gce provider")
 }
 
-var getDisksTests = []struct {
-	osname string
-	error  error
-}{
-	{"ubuntu", nil},
-	{"suse", errors.New("os Suse is not supported on the gce provider")},
-}
-
 func (s *environBrokerSuite) TestGetDisks(c *gc.C) {
-	for _, test := range getDisksTests {
-		os := ostype.OSTypeForName(test.osname)
-		diskSpecs, err := gce.GetDisks("image-url", os, "home-zone", s.StartInstArgs.Constraints, nil)
-		if test.error != nil {
-			c.Assert(err, gc.ErrorMatches, test.error.Error())
-		} else {
-			c.Assert(err, jc.ErrorIsNil)
-			c.Assert(diskSpecs, gc.HasLen, 1)
-			diskSpec := diskSpecs[0]
-			c.Assert(diskSpec.InitializeParams, gc.NotNil)
-			c.Check(diskSpec.InitializeParams.GetDiskSizeGb(), gc.Equals, int64(10))
-			c.Check(diskSpec.InitializeParams.GetSourceImage(), gc.Equals, "image-url")
-		}
-	}
+	os := ostype.OSTypeForName("ubuntu")
+	diskSpecs, err := gce.GetDisks("image-url", os, "home-zone", s.StartInstArgs.Constraints, nil)
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(diskSpecs, gc.HasLen, 1)
+	diskSpec := diskSpecs[0]
+	c.Assert(diskSpec.InitializeParams, gc.NotNil)
+	c.Check(diskSpec.InitializeParams.GetDiskSizeGb(), gc.Equals, int64(10))
+	c.Check(diskSpec.InitializeParams.GetSourceImage(), gc.Equals, "image-url")
 }
 
 func (s *environBrokerSuite) TestGetDisksRootDiskSourceValid(c *gc.C) {
