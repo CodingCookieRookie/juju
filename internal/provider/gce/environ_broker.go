@@ -387,22 +387,20 @@ func getDisks(imageURL string, os ostype.OSType, zone string, cons constraints.V
 				return nil, errors.NotValidf("disk type %q for root disk", val)
 			}
 		}
-	} else {
+	} else if cons.HasRootDiskSource() {
 		// If root disk does not exist, we check if
 		// root disk source exists, we could use the disk type
 		// if it were specified as the root disk source,
 		// otherwise we return an error.
-		if cons.HasRootDiskSource() {
-			dt := google.DiskType(*cons.RootDiskSource)
-			switch dt {
-			case google.DiskPersistentSSD, google.DiskPersistentStandard:
-				dtStr := formatDiskType(zone, string(dt))
-				disk.InitializeParams.DiskType = &dtStr
-			case google.DiskLocalSSD:
-				return nil, errors.NotValidf("local SSD disk storage")
-			default:
-				return nil, errors.NotValidf("root disk source %q", dt)
-			}
+		dt := google.DiskType(*cons.RootDiskSource)
+		switch dt {
+		case google.DiskPersistentSSD, google.DiskPersistentStandard:
+			dtStr := formatDiskType(zone, string(dt))
+			disk.InitializeParams.DiskType = &dtStr
+		case google.DiskLocalSSD:
+			return nil, errors.NotValidf("local SSD disk storage")
+		default:
+			return nil, errors.NotValidf("root disk source %q", dt)
 		}
 	}
 

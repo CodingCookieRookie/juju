@@ -122,10 +122,6 @@ func (e *manualEnviron) Bootstrap(ctx environs.BootstrapContext, callCtx context
 	if err != nil {
 		return nil, err
 	}
-
-	if args.ModelConstraints.RootDiskSource != nil {
-		hw.RootDiskSource = args.ModelConstraints.RootDiskSource
-	}
 	finalize := func(ctx environs.BootstrapContext, icfg *instancecfg.InstanceConfig, _ environs.BootstrapDialOpts) error {
 		icfg.Bootstrap.BootstrapMachineInstanceId = BootstrapInstanceId
 		icfg.Bootstrap.BootstrapMachineHardwareCharacteristics = hw

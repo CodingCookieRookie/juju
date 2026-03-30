@@ -640,15 +640,10 @@ func (e *Environ) startInstance(
 		}
 	}
 
-	hc := instance.hardwareCharacteristics()
-	if args.Constraints.HasRootDiskSource() {
-		hc.RootDiskSource = args.Constraints.RootDiskSource
-	}
-
 	result := &environs.StartInstanceResult{
 		DisplayName: hostname,
 		Instance:    instance,
-		Hardware:    hc,
+		Hardware:    instance.hardwareCharacteristics(),
 	}
 
 	return result, nil

@@ -674,7 +674,7 @@ func (env *azureEnviron) startInstance(
 		CpuCores: &instanceSpec.InstanceType.CpuCores,
 	}
 
-	if args.Constraints.RootDiskSource != nil {
+	if args.Constraints.HasRootDiskSource() {
 		hc.RootDiskSource = args.Constraints.RootDiskSource
 	}
 

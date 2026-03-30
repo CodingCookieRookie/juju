@@ -39,8 +39,6 @@ import (
 	"github.com/juju/juju/core/instance"
 	"github.com/juju/juju/core/model"
 	corenetwork "github.com/juju/juju/core/network"
-	coreos "github.com/juju/juju/core/os"
-	"github.com/juju/juju/core/os/ostype"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/bootstrap"
 	environscloudspec "github.com/juju/juju/environs/cloudspec"
@@ -1766,7 +1764,6 @@ func (s *environSuite) TestBootstrapWithInvalidCredential(c *gc.C) {
 
 func (s *environSuite) TestBootstrapInstanceConstraints(c *gc.C) {
 	defer envtesting.DisableFinishBootstrap()()
-	s.PatchValue(&coreos.HostOS, func() ostype.OSType { return ostype.Ubuntu })
 
 	ctx := envtesting.BootstrapTODOContext(c)
 	env := prepareForBootstrap(c, ctx, s.provider, &s.sender)
@@ -1828,7 +1825,6 @@ func (s *environSuite) TestBootstrapInstanceConstraints(c *gc.C) {
 
 func (s *environSuite) TestBootstrapCustomResourceGroup(c *gc.C) {
 	defer envtesting.DisableFinishBootstrap()()
-	s.PatchValue(&coreos.HostOS, func() ostype.OSType { return ostype.Ubuntu })
 
 	ctx := envtesting.BootstrapTODOContext(c)
 	env := prepareForBootstrap(c, ctx, s.provider, &s.sender, testing.Attrs{"resource-group-name": "foo"})

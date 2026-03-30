@@ -742,10 +742,6 @@ func (env *maasEnviron) StartInstance(
 		return nil, environs.ZoneIndependentError(err)
 	}
 
-	if args.Constraints.RootDiskSource != nil {
-		hc.RootDiskSource = args.Constraints.RootDiskSource
-	}
-
 	selectedTools, err := args.Tools.Match(tools.Filter{
 		Arch: *hc.Arch,
 	})
