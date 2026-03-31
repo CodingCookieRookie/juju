@@ -1,209 +1,95 @@
-# Deploy juju-qa-test without root-disk-source constraint — should default to pd-standard.
-run_root_disk_source_default() {
-	echo
+get_machine_message() {
+	local machine_id=$1
 
-	file="${TEST_DIR}/test-root-disk-source-default.log"
-
-	ensure "test-root-disk-source-default" "${file}"
-
-	juju deploy juju-qa-test --channel latest/edge
-	wait_for_machine_agent_status "0" "started"
-
-	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
-	az="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["hardware"]' | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
-
-	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
-	if [ "${boot_disk_type}" != "pd-standard" ]; then
-		echo "FAIL: expected default boot disk type pd-standard, got ${boot_disk_type}"
-		destroy_model "test-root-disk-source-default"
-		return 1
-	fi
-	echo "OK: default boot disk type is pd-standard"
-
-	destroy_model "test-root-disk-source-default"
+	juju status --format=yaml | yq -r ".machines[\"${machine_id}\"][\"machine-status\"].message"
 }
 
-# Deploy juju-qa-test with root-disk-source=ssd-gce storage pool - should be provisioned from storage pool with disk-type pd-ssd.
-run_root_disk_source_storage_pool() {
-	echo
+deploy_root_disk_source_app() {
+	local app_name=$1
+	local constraints=${2:-}
 
-	file="${TEST_DIR}/test-root-disk-source-storage-pool.log"
+	if [ -n "${constraints}" ]; then
+		juju deploy juju-qa-test "${app_name}" --channel latest/edge --constraints "${constraints}"
+	else
+		juju deploy juju-qa-test "${app_name}" --channel latest/edge
+	fi
+}
 
-	ensure "test-root-disk-source-storage-pool" "${file}"
+# Assert that deploying an application with valid root disk source succeeds.
+assert_root_disk_source_succeed() {
+	local app_name=$1
+	local expected_disk_type=$2
+	local constraints=${3:-}
+	local machine_id
+	local instance_id
+	local az
+	local boot_disk_type
 
+	echo "Deploying ${app_name} with constraints: ${constraints:-<none>}"
+	deploy_root_disk_source_app "${app_name}" "${constraints}"
+
+	machine_id="$(juju status --format=yaml | yq -r ".applications[\"${app_name}\"].units[\"${app_name}/0\"].machine")"
+	wait_for_machine_agent_status "${machine_id}" "started"
+
+	instance_id="$(juju show-machine "${machine_id}" --format=yaml | yq -r ".machines[\"${machine_id}\"][\"instance-id\"]")"
+	az="$(juju show-machine "${machine_id}" --format=yaml | yq -r ".machines[\"${machine_id}\"].hardware" | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
+	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
+	if [ "${boot_disk_type}" != "${expected_disk_type}" ]; then
+		echo "FAIL: expected boot disk type ${expected_disk_type} for ${app_name}, got ${boot_disk_type}"
+		return 1
+	fi
+
+	echo "OK: ${app_name} boot disk type is ${expected_disk_type}"
+}
+
+# Assert that deploying an application with invalid root disk source fails with expected error message.
+assert_root_disk_source_failure() {
+	local app_name=$1
+	local constraints=$2
+	local expected_message=$3
+	local machine_id
+	local machine_msg
+
+	echo "Deploying ${app_name} with constraints: ${constraints}"
+	deploy_root_disk_source_app "${app_name}" "${constraints}"
+
+	machine_id="$(juju status --format=yaml | yq -r ".applications[\"${app_name}\"].units[\"${app_name}/0\"].machine")"
+	echo "Waiting for failure message for ${app_name} on machine ${machine_id}..."
+	if wait_for "${expected_message}" ".machines[\"${machine_id}\"][\"machine-status\"][\"message\"]"; then
+		machine_msg="$(get_machine_message "${machine_id}")"
+		echo "OK: ${app_name} correctly rejected with message: ${machine_msg}"
+		return 0
+	fi
+
+	machine_msg="$(get_machine_message "${machine_id}")"
+	echo "FAIL: expected ${expected_message} in machine status for ${app_name}, got: ${machine_msg}"
+	return 1
+}
+
+run_root_disk_source() {
+	root_disk_source_model_name="test-root-disk-source"
+
+	file="${TEST_DIR}/test-root-disk-source.log"
+	ensure "${root_disk_source_model_name}" "${file}"
+
+	# Run deploy with no root disk source specified, expect default disk type to be used.
+	assert_root_disk_source_succeed "default" "pd-standard"
+	# Run deploy with root disk source specified as disk type, expect specified disk type to be used.
+	assert_root_disk_source_succeed "disk-type-ssd" "pd-ssd" "root-disk-source=pd-ssd"
+	assert_root_disk_source_failure "disk-type-local" "root-disk-source=local-ssd" "local SSD disk storage not valid"
+	assert_root_disk_source_failure "disk-type-invalid" "root-disk-source=invalid-disk" 'root disk source ".*" not valid'
+
+	# Create storage pools with different disk types and run deploy with root disk source specified as storage pool, expect disk type of storage pool to be used.
 	juju create-storage-pool ssd-gce gce disk-type=pd-ssd
-
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=ssd-gce"
-	wait_for_machine_agent_status "0" "started"
-
-	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
-	az="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["hardware"]' | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
-
-	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
-	if [ "${boot_disk_type}" != "pd-ssd" ]; then
-		echo "FAIL: expected boot disk type pd-ssd, got ${boot_disk_type}"
-		destroy_model "test-root-disk-source-storage-pool"
-		return 1
-	fi
-	echo "OK: boot disk type is pd-ssd"
-
-	destroy_model "test-root-disk-source-storage-pool"
-}
-
-# Deploy juju-qa-test with root-disk-source=local-ssd storage pool - should be provisioned from storage pool with disk-type pd-ssd.
-# Note that local-ssd here refers to the storage pool named local-ssd which has a higher priority than
-# the actual local SSD disk type that is invalid for root disk source.
-run_root_disk_source_storage_pool_named_local_ssd() {
-	echo
-
-	file="${TEST_DIR}/test-root-disk-source-storage-pool-named-local-ssd.log"
-
-	ensure "test-root-disk-source-storage-pool-named-local-ssd" "${file}"
-
 	juju create-storage-pool local-ssd gce disk-type=pd-ssd
-
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-ssd"
-	wait_for_machine_agent_status "0" "started"
-
-	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
-	az="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["hardware"]' | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
-
-	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
-	if [ "${boot_disk_type}" != "pd-ssd" ]; then
-		echo "FAIL: expected boot disk type pd-ssd, got ${boot_disk_type}"
-		destroy_model "test-root-disk-source-storage-pool-named-local-ssd"
-		return 1
-	fi
-	echo "OK: boot disk type is pd-ssd"
-
-	destroy_model "test-root-disk-source-storage-pool-named-local-ssd"
-}
-
-# Deploy juju-qa-test with root-disk-source=local-gce storage pool - should fail with "not valid" due to local-ssd disk type
-# of the storage pool not being valid for root disk source.
-run_root_disk_source_storage_pool_local() {
-	echo
-
-	file="${TEST_DIR}/test-root-disk-source-storage-pool-local.log"
-
-	ensure "test-root-disk-source-storage-pool-local" "${file}"
-
 	juju create-storage-pool local-gce gce disk-type=local-ssd
-
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-gce"
-
-	echo "Waiting for status failure message indicating local-ssd is not valid..."
-	if (wait_for "local SSD disk storage not valid" '.machines["0"]["machine-status"]["message"]'); then
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "OK: local-ssd correctly rejected with message: ${machine_msg}"
-		destroy_model "test-root-disk-source-storage-pool-local"
-		return 0
-	else
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "FAIL: expected 'local SSD disk storage not valid' in machine status, got: ${machine_msg}"
-		destroy_model "test-root-disk-source-storage-pool-local"
-		return 1
-	fi
-}
-
-# Deploy juju-qa-test with root-disk-source=invalid-disk storage pool - should fail with "not valid" due to invalid disk type of the storage pool.
-run_root_disk_source_storage_pool_invalid() {
-	echo
-
-	file="${TEST_DIR}/test-root-disk-source-storage-pool-invalid.log"
-
-	ensure "test-root-disk-source-storage-pool-invalid" "${file}"
-
 	juju create-storage-pool invalid-disk gce disk-type=invalid-disk
+	assert_root_disk_source_succeed "storage-pool-pd-ssd" "pd-ssd" "root-disk-source=ssd-gce"
+	assert_root_disk_source_succeed "storage-pool-local-ssd-name" "pd-ssd" "root-disk-source=local-ssd"
+	assert_root_disk_source_failure "storage-pool-local-ssd" "root-disk-source=local-gce" "local SSD disk storage not valid"
+	assert_root_disk_source_failure "storage-pool-invalid" "root-disk-source=invalid-disk" 'disk type ".*" for root disk not valid'
 
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=invalid-disk"
-
-	echo "Waiting for status failure message indicating disk type invalid-disk for root disk is not valid..."
-	if (wait_for 'disk type ".*" for root disk not valid' '.machines["0"]["machine-status"]["message"]'); then
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "OK: unknown disk type correctly rejected with message: ${machine_msg}"
-		destroy_model "test-root-disk-source-storage-pool-invalid"
-		return 0
-	else
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "FAIL: expected 'disk type \"invalid-disk\" for root disk not valid' in machine status, got: ${machine_msg}"
-		destroy_model "test-root-disk-source-storage-pool-invalid"
-		return 1
-	fi
-}
-
-# Deploy juju-qa-test with root-disk-source=pd-ssd constraint - should be provisioned with pd-ssd root disk type.
-run_root_disk_source_disk_type() {
-	echo
-
-	file="${TEST_DIR}/test-root-disk-source-disk-type.log"
-
-	ensure "test-root-disk-source-disk-type" "${file}"
-
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=pd-ssd"
-	wait_for_machine_agent_status "0" "started"
-
-	# Verify the instance's boot disk is pd-ssd.
-	instance_id="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["instance-id"]')"
-	az="$(juju show-machine 0 --format=yaml | yq -r '.machines["0"]["hardware"]' | tr ' ' '\n' | grep 'availability-zone' | cut -d= -f2)"
-
-	boot_disk_type="$(gcloud compute disks describe "${instance_id}" --zone="${az}" --format="value(type.basename())")"
-	if [ "${boot_disk_type}" != "pd-ssd" ]; then
-		echo "FAIL: expected boot disk type pd-ssd, got ${boot_disk_type}"
-		destroy_model "test-root-disk-source-disk-type"
-		return 1
-	fi
-	echo "OK: boot disk type is pd-ssd"
-
-	destroy_model "test-root-disk-source-disk-type"
-}
-
-# Deploy juju-qa-test with local-ssd — should fail with "not valid" due to local-ssd not being a valid root disk type.
-run_root_disk_source_local() {
-	echo
-
-	file="${TEST_DIR}/test-root-disk-source-local.log"
-
-	ensure "test-root-disk-source-local" "${file}"
-
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=local-ssd"
-
-	echo "Waiting for status failure message indicating local-ssd is not valid..."
-	if (wait_for "local SSD disk storage not valid" '.machines["0"]["machine-status"]["message"]'); then
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "OK: local-ssd correctly rejected with message: ${machine_msg}"
-		destroy_model "test-root-disk-source-local"
-		return 0
-	else
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "FAIL: expected 'local SSD disk storage not valid' in machine status, got: ${machine_msg}"
-		destroy_model "test-root-disk-source-local"
-		return 1
-	fi
-}
-
-# Deploy juju-qa-test with an invalid root disk source — should fail with "not valid" due to invalid root disk source.
-run_root_disk_source_invalid() {
-	echo
-
-	file="${TEST_DIR}/test-root-disk-source-invalid.log"
-
-	ensure "test-root-disk-source-invalid" "${file}"
-
-	juju deploy juju-qa-test --channel latest/edge --constraints "root-disk-source=invalid-disk"
-
-	echo "Waiting for status failure message indicating root disk source is not valid..."
-	if (wait_for 'root disk source ".*" not valid' '.machines["0"]["machine-status"]["message"]'); then
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "OK: invalid root disk source correctly rejected with message: ${machine_msg}"
-		destroy_model "test-root-disk-source-invalid"
-		return 0
-	else
-		machine_msg=$(juju status --format=yaml | yq -r '.machines["0"]["machine-status"]["message"]')
-		echo "FAIL: expected 'root disk source \"invalid-disk\" not valid' in machine status, got: ${machine_msg}"
-		destroy_model "test-root-disk-source-invalid"
-		return 1
-	fi
+	destroy_model "${root_disk_source_model_name}"
 }
 
 test_root_disk_source() {
@@ -217,13 +103,6 @@ test_root_disk_source() {
 
 		cd .. || exit
 
-		run "run_root_disk_source_default"
-		run "run_root_disk_source_storage_pool"
-		run "run_root_disk_source_storage_pool_named_local_ssd"
-		run "run_root_disk_source_storage_pool_local"
-		run "run_root_disk_source_storage_pool_invalid"
-		run "run_root_disk_source_disk_type"
-		run "run_root_disk_source_local"
-		run "run_root_disk_source_invalid"
+		run "run_root_disk_source"
 	)
 }

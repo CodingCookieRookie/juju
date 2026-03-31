@@ -730,7 +730,6 @@ func (t *localServerSuite) TestStartInstanceHardwareCharacteristics(c *gc.C) {
 	c.Check(*hc.Arch, gc.Equals, "amd64")
 	c.Check(*hc.Mem, gc.Equals, uint64(8192))
 	c.Check(*hc.CpuCores, gc.Equals, uint64(2))
-	c.Assert(hc.RootDiskSource, gc.NotNil)
 	c.Check(*hc.RootDiskSource, gc.Equals, "test-storage-pool")
 }
 
