@@ -2595,7 +2595,7 @@ func (a *app) EnsureStorage(
 	currentPodSpec := currentStatefulset.StatefulSet.StatefulSet.Spec.Template.Spec
 	newPodSpec := newStatefulset.StatefulSet.Spec.Template.Spec
 	volumeMatches := equality.Semantic.DeepEqual(currentPodSpec.Volumes, newPodSpec.Volumes)
-	volumeMountMatches := equality.Semantic.DeepEqual(currentPodSpec.Containers, newPodSpec.Containers)
+	// volumeMountMatches := equality.Semantic.DeepEqual(currentPodSpec.Containers, newPodSpec.Containers)
 
 	logger.Infof("alvin3 currentPodSpec volume: %+v", currentPodSpec.Volumes)
 	logger.Infof("alvin3 newPodSpec volume: %+v", newPodSpec.Volumes)
@@ -2603,7 +2603,8 @@ func (a *app) EnsureStorage(
 	logger.Infof("alvin3 currentPodSpec containers: %+v", currentPodSpec.Containers)
 	logger.Infof("alvin3 newPodSpec containers: %+v", newPodSpec.Containers)
 	// If there are no changes, we can skip re-applying the statefulset.
-	if volumeClaimTemplateMatches && volumeMatches && volumeMountMatches {
+	if volumeClaimTemplateMatches && volumeMatches {
+		logger.Infof("alvin4 no changes")
 		logger.Debugf("no changes in storage for app %q", a.name)
 		return nil
 	}
