@@ -2608,6 +2608,8 @@ func (a *app) EnsureStorage(
 		return nil
 	}
 
+	logger.Infof("alvin3 reapplied called")
+
 	// We can just apply (without deleting) the new statefulset for any non-PVC storage updates
 	// if the volume claim templates match since template updates are allowed.
 	// Check if there are any non-PVC storage changes, i.e volume and volume mounts change.
